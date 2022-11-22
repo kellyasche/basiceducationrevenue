@@ -1,0 +1,43 @@
+name: "General Education Revenue formula analysis"
+output_dir: docs
+navbar:
+  title: "General Education Revenue formula analysis"
+  left:
+    - text: "Summary of results"
+      href: index.html
+    - text: "Categories"
+      icon: fa-gear
+      menu:
+        - text: "Basic Education"
+          href: basic_education.html
+        - text: "Extended Time"
+          href: extended_time.html
+        - text: "Gifted and Talented"
+          href: gifted_talented.html
+        - text: "Small schools"
+          href: small_schools.html
+        - text: "Declining Enrollment"
+          href: declining_enrollment.html
+        - text: "Local Optional"
+          href: local_optional.html
+        - text: "Basic skills - compensatory"
+          href: basic_skills_comp.html
+        - text: "Basic skills - english learners"
+          href: basic_skills_english.html
+        - text: "Sparsity"
+          href: sparsity.html
+        - text: "Operating Capital"
+          href: operating_capital.html
+        - text: "Transportation Sparsity"
+          href: transportation_sparsity.html
+        - text: "Equity"
+          href: equity.html
+        - text: "Transition"
+          href: transition.html
+        - text: "Pension Adjustment"
+          href: pension_adjustment.html
+        - text: "Options Adjustment"
+          href: options_adjustment.html
+output:
+  html_document:
+    css: "styles.css"

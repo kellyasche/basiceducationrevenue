@@ -163,21 +163,7 @@ extended.time.distribution <- original %>%
                             breaks = c(-1, 0, 25, 50, 75,1000000),
                             labels = c("0", "1-25", "25-50", "50-75", "More than 75")))
 
-extended.time.distribution.plot <- ggplot(extended.time.distribution, aes(xwadm22)) +
-  geom_histogram(position = "dodge", aes(data_id = data_id, tooltip = paste(naicstitle, "\n", periodyear, "\nPercent share of total building construction establishments: ", percent(estab.pct.share, accuracy = .1), sep = ""))) +
-  geom_label(aes(label = percent(estab.pct.share, accuracy = .1), x = periodyear, y = estab.pct.share), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
-  labs(x="", y = "", color="", title = "Percent share of total building construction establishments")+
-  scale_y_continuous(labels=scales::percent)+
-  theme_bar+
-  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu"),
-                    guide = guide_legend(ncol = 3)) +
-  theme(legend.position = "bottom",
-        text = element_text(size = 18))
-
-
-girafe(ggobj = res.comm.construction.share.mn.plot, width_svg = 10, height_svg = 10) %>%
-  girafe_options(opts_selection(type = "none"),
-                 opts_sizing(rescale = FALSE))      
+  
 
 ```
 

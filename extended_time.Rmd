@@ -1,5 +1,5 @@
 ---
-title: "Basic education revenue"
+title: "Extended Time"
 output:
   html_document:
     toc: true
@@ -37,6 +37,7 @@ library(lubridate)
 library(systemfonts)
 reset_font_cache()
 library(ggtext)
+library(gmodels)
 
 ```
 
@@ -132,129 +133,132 @@ group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
 
 ```
 
+<br>
+
 # Description
 
-The basic education revenue category provides a base amount of revenue per adjusted pupil units to each school district. 
-
-* FY23: $6,863
-* FY22: $6,728
-* FY21: $6,567
-* FY20: $6,438
-* FY19: $6,312
-* FY18: $6,188
-
-<br>
+Beginning in 2004, school districts are prohibited from counting a student as more than 1.0 in average daily membership, which they used to do if a student was participating in a learning year program (summer school, extended day, extended week, etc..). This program allows a school district to count a student who participates in extended programming for up to an additional 0.2 students in ADM for the time the student spends in summer school, etc…. The allowance is $5,117 X the district’s extended time adjusted pupil units.
 
 # State Legislation
-[126C.10 Subd. 2.Basic revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10)
+[126C.10 Subd. 2.Basic revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.2a)
+
+Subd. 2a.Extended time revenue.
  
-The basic revenue for each district equals the formula allowance times the adjusted pupil units for the school year. The formula allowance for fiscal year 2021 is $6,567. The formula allowance for fiscal year 2022 is $6,728. The formula allowance for fiscal year 2023 and later is $6,863.
+a) A school district's extended time revenue is equal to the product of $5,117 and the sum of the adjusted pupil units of the district for each pupil in average daily membership in excess of 1.0 and less than 1.2 according to section [126C.05, subdivision 8](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.8).
+	
+b) Extended time revenue for pupils placed in an on-site education program at the Prairie Lakes Education Center or the Lake Park School, located within the borders of Independent School District No. 347, Willmar, for instruction provided after the end of the preceding regular school year and before the beginning of the following regular school year equals membership hours divided by the minimum annual instructional hours in section [126C.05, subdivision 15](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.15), not to exceed 0.20, times the pupil unit weighting in section [126C.05, subdivision 1](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.1), times $5,117.
+
+c) A school district's extended time revenue may be used for extended day programs, extended week programs, summer school, vacation break academies such as spring break academies and summer term academies, and other programming authorized under the learning year program.
+
+# Data
+
+The distribution ......
 
 <br>
 
-# Data {.tabset}
-Since the only official student enrollment data we have is for last year's school year, we will stick with the FY22 data as well as basic revenue value. 
+```{r extended time pupil units distribution}
+extended.time.distribution <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(xwadm22.bins = cut(xwadm22,
+                            breaks = c(-1, 0, 25, 50, 75,1000000),
+                            labels = c("0", "1-25", "25-50", "50-75", "More than 75")))
 
-The total basic revenue distributed by the state of Minnesota in 2021-2022 school year was `r dollar(sum(original$bsrev))`. 
+extended.time.distribution.plot <- ggplot(extended.time.distribution, aes(xwadm22)) +
+  geom_histogram(position = "dodge", aes(data_id = data_id, tooltip = paste(naicstitle, "\n", periodyear, "\nPercent share of total building construction establishments: ", percent(estab.pct.share, accuracy = .1), sep = ""))) +
+  geom_label(aes(label = percent(estab.pct.share, accuracy = .1), x = periodyear, y = estab.pct.share), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Percent share of total building construction establishments")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
 
-The table below procides the basic revenue received by each school district in Minnesota.
+
+girafe(ggobj = res.comm.construction.share.mn.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
 
 <br>
 
-```{r basic revenue table}
-basic.rev.schools <- original %>%
-  select(`District Name`, dist, type, `County Name`, bsrev, awadm22) %>%
+Since the last official data is from 2022, we will use that fiscal year to analyze the distribution of revenue.
+
+Extended time is a horizontal funding mechanism. Therefore it is distributed on a per student basis. In this case, it's based on students that attend that participates in programs outside of the typical school day. Therefore, each school district will receive varying amounts depending on how many students they have participating in these programs, but on a per student basis, the revenue should equal $5,117 for each school district, RUCA category, and Region.
+
+All the tables below indicate that each district does receive $5,117 per extended time pupil units. However, on just an adjusted pupil unit basis the revenue does vary. This indicates that schools have varying proportion of students that are participating in extended learning programs.
+
+The district table below shows that the districts receiving the most extended time revenue per APU vary in terms of being metro or rural districts. The highest is Dover-Eyota with $452 per APU. The other districts in the top are a mixture of metro and rural districts.
+
+<br>
+
+```{r extended time district}
+extended.time.dist <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, dist, type, `County Name`, awadm22, exdayr, xwadm22) %>%
+  mutate(`Extended time rev per ext time pupils` = exdayr / xwadm22,
+         `Extended time rev per adjusted pupil units` = exdayr / awadm22) %>%
   rename(`District Number` = 2,
          `District Type` = 3,
-         `Basic Revenue` = 5,
-         `Adjusted Pupil Units` = 6) %>%
-  mutate(`Basic revenue per pupil unit` = `Basic Revenue` / `Adjusted Pupil Units`)
-  
-datatable(basic.rev.schools, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)))) %>%
-  formatCurrency(5:7, "$", digits = 0)
+         `Adjusted pupil units` = 5,
+         `Total adjusted time revenue` = 6,
+         `Adjusted extended time pupil units` = 7)
 
-```
-<br>
-
-Below provides a breakdown of the different types of education institutions that receive funding from the state and how much each of those types received in FY22. 
-
-As the table shows, the basic revenue category provides a flat $6,728 for each adjusted pupil unit.
-
-<br>
-
-```{r basic revenue by school type}
-basic.rev.school.type <- original %>%
-  filter(group %in% c(1, 3,4,5)) %>%
-  group_by(group) %>%
-  summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),
-            Districts = n(),
-            `Basic Revenue` = sum(bsrev, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(`Basic revenue per district` = `Basic Revenue` / Districts,
-         `Basic revenue per adjusted pupil` = `Basic Revenue` / `Adjusted pupil units`) %>%
-  left_join(group.codes, by = c("group" = "Code")) %>%
-  select(7, 2:6)
-
-datatable(basic.rev.school.type, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
-  formatCurrency(2:3, "", digits = 0) %>%
-  formatCurrency(4:6, "$", digits = 0)
+datatable(extended.time.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)))) %>%
+  formatCurrency(5, "", digits = 0) %>%
+  formatCurrency(6, "$", digits = 0) %>%
+  formatCurrency(7, "", digits = 0) %>%
+  formatCurrency(8:9, "$", digits = 0)
 ```
 
-<br>
-
-We should expect the exact same thing if we break it down by RUCA categories and regions.
 
 <br>
+
+# {.unnumbered .unlisted .toc-ignore .tabset}
+
+Next I want to determine if there's any significant differences in the revenue per APU being distributed. Any differences that are found would not be due to the model or anything wrong, but rather that there is variation in the amount of after school programs offered as well as a varying proportion of students that attend these programs. The question is, does the variation depend on RUCA category or region?
+
+The following tables will provide;
+
+* the range of extended time per APU
+* mean extended time rev per APU
+* median extended time rev per APU, and
+* standard deviation of extended time rev per APU.
+
+In addition, below the table I will conduct an ANOVA analysis to determine if there are any statistically significant differences in the amount of extended time revenue per APU by RUCA category and region.
+
+
 
 ## RUCA
 
 <br>
 
-```{r basic revenue ruca}
-basic.rev.ruca <- original %>%
-  filter(group %in% c(1,3,4,5)) %>%
+```{r extended time ruca}
+extended.time.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
   drop_na(Dem_Desc) %>%
+  select(Dem_Desc, awadm22, exdayr, xwadm22) %>%
+  mutate(extended.time.apu = exdayr / awadm22,
+         extended.time.apu = ifelse(is.na(extended.time.apu), 0, extended.time.apu)) %>%
   group_by(Dem_Desc) %>%
-  summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),
-            Districts = n(),
-            `Basic Revenue` = sum(bsrev, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(`Basic revenue per district` = `Basic Revenue` / Districts,
-         `Basic revenue per adjusted pupil` = `Basic Revenue` / `Adjusted pupil units`) 
+  summarize(min.extended.time.apu = min(extended.time.apu),
+            max.extendex.time.apu = max(extended.time.apu),
+            mean.extended.time.apu = mean(extended.time.apu, na.rm = TRUE),
+            median.extended.time.apu = median(extended.time.apu, na.rm = TRUE),
+            sd.extended.time.apu = sd(extended.time.apu)) %>%
+  ungroup()
 
-datatable(basic.rev.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
-  formatCurrency(2:3, "", digits = 0) %>%
-  formatCurrency(4:6, "$", digits = 0)
-
+  
 ```
 
 <br>
 
-## Planning Regoion
+## Planning Region
 
 <br>
-
-```{r basic revenue pr}
-basic.rev.pr <- original %>%
-  filter(group %in% c(1,3,4,5)) %>%
-  drop_na(planning.region) %>%
-  group_by(planning.region) %>%
-  summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),
-            Districts = n(),
-            `Basic Revenue` = sum(bsrev, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(`Basic revenue per district` = `Basic Revenue` / Districts,
-         `Basic revenue per adjusted pupil` = `Basic Revenue` / `Adjusted pupil units`) 
-
-datatable(basic.rev.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
-  formatCurrency(2:3, "", digits = 0) %>%
-  formatCurrency(4:6, "$", digits = 0)
-
-```
 
 <br>
 
@@ -262,23 +266,7 @@ datatable(basic.rev.pr, class = "cell-border stripe", filter = "top", rownames =
 
 <br>
 
-```{r basic revenue edr}
-basic.rev.edr <- original %>%
-  filter(group %in% c(1,3,4,5)) %>%
-  drop_na(edr) %>%
-  group_by(edr) %>%
-  summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),
-            Districts = n(),
-            `Basic Revenue` = sum(bsrev, na.rm = TRUE)) %>%
-  ungroup() %>%
-  mutate(`Basic revenue per district` = `Basic Revenue` / Districts,
-         `Basic revenue per adjusted pupil` = `Basic Revenue` / `Adjusted pupil units`) 
-
-datatable(basic.rev.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
-  formatCurrency(2:3, "", digits = 0) %>%
-  formatCurrency(4:6, "$", digits = 0)
-
-```
+<br>
 
 
+ 

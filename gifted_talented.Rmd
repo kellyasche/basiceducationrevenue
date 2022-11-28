@@ -1,5 +1,5 @@
 ---
-title: "Extended Time"
+title: "Gifted and Talented"
 output:
   html_document:
     toc: true
@@ -137,90 +137,45 @@ group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
 
 # Description
 
-Beginning in 2004, school districts are prohibited from counting a student as more than 1.0 in average daily membership, which they used to do if a student was participating in a learning year program (summer school, extended day, extended week, etc..). This program allows a school district to count a student who participates in extended programming for up to an additional 0.2 students in ADM for the time the student spends in summer school, etc…. The allowance is $5,117 X the district’s extended time adjusted pupil units.
+A school district receives $13 per pupil unit for gifted and talented programming. $13 X adjusted pupil units. Must be spent on gifted and talented students.
+
+<br>
 
 # State Legislation
-[126C.10 Subd. 2.Basic revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.2a)
-
-Subd. 2a.Extended time revenue.
+[Subd. 2b.Gifted and talented revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.2b)
  
-a) A school district's extended time revenue is equal to the product of $5,117 and the sum of the adjusted pupil units of the district for each pupil in average daily membership in excess of 1.0 and less than 1.2 according to section [126C.05, subdivision 8](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.8).
-	
-b) Extended time revenue for pupils placed in an on-site education program at the Prairie Lakes Education Center or the Lake Park School, located within the borders of Independent School District No. 347, Willmar, for instruction provided after the end of the preceding regular school year and before the beginning of the following regular school year equals membership hours divided by the minimum annual instructional hours in section [126C.05, subdivision 15](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.15), not to exceed 0.20, times the pupil unit weighting in section [126C.05, subdivision 1](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.1), times $5,117.
+Gifted and talented revenue for each district equals the district's adjusted pupil units for that school year times $13. A school district must reserve gifted and talented revenue and, consistent with section [120B.15](https://www.revisor.mn.gov/statutes/cite/120B.15), must spend the revenue only to:
 
-c) A school district's extended time revenue may be used for extended day programs, extended week programs, summer school, vacation break academies such as spring break academies and summer term academies, and other programming authorized under the learning year program.
+1. identify gifted and talented students;
+2. provide education programs for gifted and talented students; or
+3. provide staff development to prepare teachers to best meet the unique needs of gifted and talented students.
+	
+<br>
 
 # Data
+The data being used is for FY22 since that is the last full, "official" data we have available.
 
-The following breakdowns use data from FY22. 
+Gifted and talented revenue is a horizontal funding mechanism. It is distributed on a per student basis. In this case, a school receives $13 for every adjusted pupil unit (APU). 
 
-Extended time is a horizontal funding mechanism. Therefore it is distributed on a per student basis. In this case, it's based on students that participate in programs outside of the typical school day. Therefore, each school district will receive varying amounts depending on how many students they have participating in these programs, but on a per student basis, the revenue should equal $5,117 for each school district, RUCA category, and Region.
-
-Below is the distribution of total extended time revenue provided to districts. A large majority of districts receive $0 in extended time revenue, indicating that they either don't provide any programs that qualify for extended time revenue or don't have any students participating in programs that qualify. 
-
-Outside of this, most schools receive $500,000 or less.
+The below provides the APU, total gifted and talented revenue, as well as the gifted and talented revenue per APU for each district. As expected, the gifted and talented revenue per APU is $13.00 for every district.
 
 <br>
 
-```{r extended time pupil units distribution}
-ext.time.distribution <- original %>%
+```{r gifted and talented district}
+gt.dist <- original %>%
   filter(group %in% c(1,4)) %>%
-  select(dist, exdayr, awadm22) %>%
-  mutate(ext.time.apu = exdayr / awadm22)
-
-ext.time.distribution.plot <- ggplot(ext.time.distribution, aes(exdayr)) +
-  geom_histogram() +
-  labs(x="", y = "", color="", title = "Extended time revenue per APU - distribution")+
-  scale_y_continuous(labels=scales::comma)+
-  scale_x_continuous(labels = scales::dollar) +
-  theme_bar+
-  theme(legend.position = "bottom",
-        text = element_text(size = 18))
-
-
-girafe(ggobj = ext.time.distribution.plot, width_svg = 10, height_svg = 10) %>%
-  girafe_options(opts_selection(type = "none"),
-                 opts_sizing(rescale = FALSE))      
-
-  
-
-```
-
-
-<br>
-
-The table below provides each school district's total extended time revenue, the adjusted pupil units, the extended time pupil units, extended time revenue per extended time pupil units, and extended time revenue per adjusted pupil units.
-
-As expected, every district either receives $0 in extended time revenue because they have no extended time pupil units, or $5,117 per extended time pupil units. 
-
-However, the extended time revenue per adjusted pupil units varies significantly across districts. This indicates that schools have varying proportion of students that are participating in extended learning programs and/or offer a varying number of programs that qualify for funding.
-
-The district table below shows that the districts receiving the most extended time revenue per APU vary in terms of being metro or rural districts. The highest is Dover-Eyota with $452 per APU. The other districts in the top are a mixture of metro and rural districts.
-
-<br>
-
-```{r extended time district}
-extended.time.dist <- original %>%
-  filter(group %in% c(1,4)) %>%
-  select(`District Name`, dist, type, `County Name`, awadm22, exdayr, xwadm22) %>%
-  mutate(`Extended time rev per ext time pupils` = exdayr / xwadm22,
-         `Extended time rev per adjusted pupil units` = exdayr / awadm22) %>%
+  select(`District Name`, dist, type, `County Name`, awadm22, gtrev) %>%
+  mutate(`Gifted and talented revenue per APU` = gtrev / awadm22) %>%
   rename(`District Number` = 2,
          `District Type` = 3,
-         `Adjusted pupil units` = 5,
-         `Total adjusted time revenue` = 6,
-         `Adjusted extended time pupil units` = 7)
+         `APU` = 5, 
+         `Gifted and talented revenue` = 6)
 
-datatable(extended.time.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)))) %>%
+datatable(gt.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)))) %>%
   formatCurrency(5, "", digits = 0) %>%
-  formatCurrency(6, "$", digits = 0) %>%
-  formatCurrency(7, "", digits = 0) %>%
-  formatCurrency(8:9, "$", digits = 0)
+  formatCurrency(6:7, "$")
+
+
 ```
 
-
-
-
-
- 

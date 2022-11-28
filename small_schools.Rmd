@@ -1,0 +1,574 @@
+---
+title: "Small Schools"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+
+A school district that serves less than 960 pupil units is eligible for small schools revenue equal to $544 X the district’s adjusted pupil units, times the ratio of 960 less the district’s adjusted pupil units to 960.
+
+<br>
+
+# State Legislation
+
+[Subd. 2c.Small schools revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.2c)
+ 
+a) A school district, not including a charter school, is eligible for small schools revenue equal to the greater of the calculation under paragraph (b) or (d).
+b) The product of:
+    + $544;
+    + the district's adjusted pupil units for that year; and
+    + the greater of zero or the ratio of (i) 960 less the district's adjusted pupil units for that year, to (ii) 960.
+c) For the purpose of revenue calculated under paragraph (d), "district" includes a qualifying high school under subdivision 6 that is located in a district with at least two high schools.
+d) The product of:
+    + $544;
+    + the district's adjusted pupil units for that year; and
+    + the greater of zero or the ratio of (i) 960 less the district's adjusted pupil units for that year, to (ii) 960.
+
+<br>
+
+# Data
+
+The following breakdowns use data from FY22. 
+
+Small schools revenue is a vertical funding mechanism, meaning it's meant to target a specific student population or district characteristics. This funding revenue is an acknowledgement of the challenges associated with low revenues from the basic revenue component that comes with a low number of students being served. There is always going to be some basic overhead and the economies of scale for a school with a low student population don't always work.
+
+The table below provides each component of the calculation found in the legislation.
+
+* Small schools allowance = $544
+* APU = this is the adjusted pupil units for FY22 in the school.
+* Ratio = this is the ratio *"the greater of zero or the ratio of (i) 960 less the district's adjusted pupil units for that year, to (ii) 960."*
+
+If you multiply this all the way across, you will get the total small schools revenue the district received. 
+
+**Note**
+There are a few schools where this multiplication won't work. In particular, it's the schools designated in part C of the state legislation. These districts seemed to be provided a value in the stats script. Those district numbers are;
+
+* 318
+* 363
+* 381
+* 2142
+
+A good example here is St. Louis County School District (number 2142). This school district has more than 1 high school within it's district that qualifies.
+
+<br>
+
+```{r small schools district}
+small.schools.district <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, dist, type, `County Name`, fa22sm, awadm22, smlrto, smlrev) %>%
+  mutate(`Small schools rev per APU` = smlrev / awadm22)
+
+datatable(small.schools.district, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)))) %>%
+  formatCurrency(5, "$", digits = 0) %>%
+  formatCurrency(6, "", digits = 0) %>%
+  formatCurrency(8:9, "$", digits = 2)
+
+```
+
+<br>
+
+The total number of districts that receive small schools revenue is `r nrow(filter(small.schools.district, smlrev > 0))` of `r nrow(small.schools.district)` districts (`r percent(nrow(filter(small.schools.district, smlrev > 0)) / nrow(small.schools.district), accuracy = .1)`). 
+
+<br>
+
+## Eligible schools
+
+This is a targeted funding mechanism meaning only certain schools are eligible. This particular funding component relies on the size of the adjusted pupil units as its determinant. 
+
+First, since both districts and charter schools are eligible for this revenue, lets look at the breakdown between those two types.
+
+The table below provides the the percentage of districts and charters that receive small schools revenue. The percentage of charters schools that qualify for small schools revenue was nearly 90% while 49% of districts received the revenue.
+
+<br>
+
+```{r small schools district and charters pct receive funding}
+pct.small.schools.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(group, fa22sm, awadm22, smlrto, smlrev) %>%
+  mutate(receive.small.school.rev = ifelse(smlrev > 0, 1, 0)) %>%
+  group_by(group) %>%
+  summarize(num = n(),
+            receive = sum(receive.small.school.rev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(pct.receive = receive / num) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, num, receive, pct.receive) %>%
+  rename(`School type` = 1,
+         `Number of districts` = 2,
+         `School receives small school revenue` = 3,
+         `Percent of districts receive revenue` = 4)
+
+datatable(pct.small.schools.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4, digits = 0) 
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+Next, let's see if there is a difference in the percentage of schools that receive the funding by edr category and region.
+
+The RUCA categories are not surprising. The more rural a county or region is, the higher the percentage of schools that qualify for this revenue.
+
+However, the regional percentages are a bit surprising. In the planning region breakdown, Southwest had, as exected, the highest percentage of districts with 74% receiving the revenue. However, it's surprising to see the Seven County Metro in the middle with 63% of districts receiving funding. That's higher than Southeast and Central.
+
+This surprising ranking of percentages continues in the EDR breakdown. As expected, EDRs on the Northwest and Southwest borders have the highest percentages. Again, the seven count metro has a higher percentage of districts that receive the funding than five other EDRs. The lowest percentage was in EDR 7W-Central with only 31% of districts receiving the funding.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r small schools receive funding ruca}
+pct.small.schools.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(Dem_Desc, fa22sm, awadm22, smlrto, smlrev) %>%
+  drop_na(Dem_Desc) %>%
+  mutate(receive.small.school.rev = ifelse(smlrev > 0, 1, 0)) %>%
+  group_by(Dem_Desc) %>%
+  summarize(num = n(),
+            receive = sum(receive.small.school.rev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(pct.receive = receive / num) %>%
+  rename(`Number of districts` = 2,
+         `School receives small school revenue` = 3,
+         `Percent of districts receive revenue` = 4)
+
+datatable(pct.small.schools.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4, digits = 0) 
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r small schools receive funding pr}
+pct.small.schools.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(planning.region, fa22sm, awadm22, smlrto, smlrev) %>%
+  drop_na(planning.region) %>%
+  mutate(receive.small.school.rev = ifelse(smlrev > 0, 1, 0)) %>%
+  group_by(planning.region) %>%
+  summarize(num = n(),
+            receive = sum(receive.small.school.rev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(pct.receive = receive / num) %>%
+  rename(`Number of districts` = 2,
+         `School receives small school revenue` = 3,
+         `Percent of districts receive revenue` = 4)
+
+datatable(pct.small.schools.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4, digits = 0) 
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r small schools receive funding edr}
+pct.small.schools.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(edr, fa22sm, awadm22, smlrto, smlrev) %>%
+  drop_na(edr) %>%
+  mutate(receive.small.school.rev = ifelse(smlrev > 0, 1, 0)) %>%
+  group_by(edr) %>%
+  summarize(num = n(),
+            receive = sum(receive.small.school.rev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(pct.receive = receive / num) %>%
+  rename(`Number of districts` = 2,
+         `School receives small school revenue` = 3,
+         `Percent of districts receive revenue` = 4)
+
+datatable(pct.small.schools.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4, digits = 0) 
+
+```
+
+<br>
+
+## Revenue per APU
+
+Next we want to see if the distribution of funds varies across the type of school, as well as RUCA category and regions. In these breakdowns, we will only be including schools that qualified for the funding.
+
+Up first, we will check the revenue per APU. The table below provides the small schools revenue per APU for school districts and charter schools that received funding. For some reason, charter schools get significantly more per APU than school districts. One theory might be that chart schools are typically significantly smaller APU than school districts? So many of them get a rather large ratio of the $544 * APU?
+
+<br>
+
+```{r small schools per apu group}
+small.schools.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+    select(group, awadm22, smlrev) %>%
+  group_by(group) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(`Small schools revenue per APU` = smlrev / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(5,2,3,4) %>%
+  rename(`School type` = 1,
+         `APU` = 2,
+         `Small schools revenue` = 3,
+         `Small schools rev per APU` = 4)
+
+datatable(small.schools.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2) 
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+Okay, now lets check the RUCA categories and regions.
+
+Again, pretty surprising results. In the RUCA category, the highest small schools revenue per APU is in entirely urban districts with $240.82 per APU. This is followed by Entirely rural with $231.98.
+
+This trend follows in the regional breakdowns. The seven county metro planning region has the highest small schools revenue per APU with $250.58. This is followed by Northwest with $228.08 per APU. The lowest was in Northeast with $169.04.
+
+It changes up a bit with the EDR breakdown. EDR 1 - Northwest has the highest with $291.47 per APU followed by the seven county metro with $250.58. Most surprisingly is the lowest being in EDR 6W - Upper MN Valley which has $144.08 per APU. This is by far one of the most rural counties in the state.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r small schools per apu ruca}
+small.schools.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(Dem_Desc, awadm22, smlrev) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(`Small schools revenue per APU` = smlrev / awadm22) %>%
+  rename(`APU` = 2,
+         `Small schools revenue` = 3,
+         `Small schools rev per APU` = 4)
+
+datatable(small.schools.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2) 
+
+```
+
+<br>
+
+### Planning Region
+
+
+<br>
+
+```{r small schools per apu planning.region}
+small.schools.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(planning.region, awadm22, smlrev) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(`Small schools revenue per APU` = smlrev / awadm22) %>%
+  rename(`APU` = 2,
+         `Small schools revenue` = 3,
+         `Small schools rev per APU` = 4)
+
+datatable(small.schools.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2) 
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r small schools per apu edr}
+small.schools.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(edr, awadm22, smlrev) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(`Small schools revenue per APU` = smlrev / awadm22) %>%
+  rename(`APU` = 2,
+         `Small schools revenue` = 3,
+         `Small schools rev per APU` = 4)
+
+datatable(small.schools.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2) 
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+Let's check to see if the charter schools in each RUCA category and region are driving these interesting values.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r small schools per apu group ruca}
+small.schools.apu.group.ruca <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(Dem_Desc, group, awadm22, smlrev) %>%
+  group_by(Dem_Desc, group) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(small.schools.apu = smlrev / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(1,6,3,4,5)
+
+small.schools.apu.group.ruca.2 <- small.schools.apu.ruca %>%
+  rename(awadm22 = 2, 
+         smlrev = 3,
+         small.schools.apu = 4) %>%
+  mutate(Definition = "Combined")
+
+small.schools.apu.group.ruca <- small.schools.apu.group.ruca %>%
+  rbind(small.schools.apu.group.ruca.2) %>%
+  mutate(data_id = seq(n()),
+         Definition = fct_relevel(Definition, "School Districts", "Charter Schools", "Combined"))
+
+
+small.schools.apu.group.ruca.plot <- ggplot(small.schools.apu.group.ruca, aes(Dem_Desc, small.schools.apu, fill = Definition, group = Definition)) +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(Dem_Desc, "\n", Definition, "\nAdjusted pupil units: ", comma(awadm22, accuracy = 1), "\nSmall schools revenue: ", dollar(smlrev), "\nSmall schools revenue per APU: ", dollar(small.schools.apu), sep = ""))) +
+  geom_label(aes(label = dollar(small.schools.apu)), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Small schools revenue per APU by RUCA and school type")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+
+girafe(ggobj = small.schools.apu.group.ruca.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r small schools per apu group pr}
+small.schools.apu.group.pr <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(planning.region, group, awadm22, smlrev) %>%
+  group_by(planning.region, group) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(small.schools.apu = smlrev / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(1,6,3,4,5)
+
+small.schools.apu.group.pr.2 <- small.schools.apu.pr %>%
+  rename(awadm22 = 2, 
+         smlrev = 3,
+         small.schools.apu = 4) %>%
+  mutate(Definition = "Combined")
+
+small.schools.apu.group.pr <- small.schools.apu.group.pr %>%
+  rbind(small.schools.apu.group.pr.2) %>%
+  mutate(data_id = seq(n()),
+         Definition = fct_relevel(Definition, "School Districts", "Charter Schools", "Combined"))
+
+
+small.schools.apu.group.pr.plot <- ggplot(small.schools.apu.group.pr, aes(planning.region, small.schools.apu, fill = Definition, group = Definition)) +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(planning.region, "\n", Definition, "\nAdjusted pupil units: ", comma(awadm22, accuracy = 1), "\nSmall schools revenue: ", dollar(smlrev), "\nSmall schools revenue per APU: ", dollar(small.schools.apu), sep = ""))) +
+  geom_label(aes(label = dollar(small.schools.apu)), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Small schools revenue per APU by pr and school type")+
+  scale_y_continuous(labels=scales::dollar) +
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18),
+        axis.text.x = element_text(angle = 25, hjust = 1))
+
+
+girafe(ggobj = small.schools.apu.group.pr.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+
+
+<br>

@@ -163,6 +163,7 @@ The table below procides the basic revenue received by each school district in M
 
 ```{r basic revenue table}
 basic.rev.schools <- original %>%
+  filter(group %in% c(1,4)) %>%
   select(`District Name`, dist, type, `County Name`, bsrev, awadm22) %>%
   rename(`District Number` = 2,
          `District Type` = 3,
@@ -172,7 +173,9 @@ basic.rev.schools <- original %>%
   
 datatable(basic.rev.schools, class = "cell-border stripe", filter = "top", rownames = FALSE,
           options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)))) %>%
-  formatCurrency(5:7, "$", digits = 0)
+  formatCurrency(5, "$", digits = 2) %>%
+  formatCurrency(6, "", digits = 0) %>%
+  formatCurrency(7, "$", digits = 2)
 
 ```
 <br>
@@ -185,7 +188,7 @@ As the table shows, the basic revenue category provides a flat $6,728 for each a
 
 ```{r basic revenue by school type}
 basic.rev.school.type <- original %>%
-  filter(group %in% c(1, 3,4,5)) %>%
+  filter(group %in% c(1,4)) %>%
   group_by(group) %>%
   summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),
             Districts = n(),
@@ -214,7 +217,7 @@ We should expect the exact same thing if we break it down by RUCA categories and
 
 ```{r basic revenue ruca}
 basic.rev.ruca <- original %>%
-  filter(group %in% c(1,3,4,5)) %>%
+  filter(group %in% c(1,4)) %>%
   drop_na(Dem_Desc) %>%
   group_by(Dem_Desc) %>%
   summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),
@@ -239,7 +242,7 @@ datatable(basic.rev.ruca, class = "cell-border stripe", filter = "top", rownames
 
 ```{r basic revenue pr}
 basic.rev.pr <- original %>%
-  filter(group %in% c(1,3,4,5)) %>%
+  filter(group %in% c(1,4)) %>%
   drop_na(planning.region) %>%
   group_by(planning.region) %>%
   summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),
@@ -264,7 +267,7 @@ datatable(basic.rev.pr, class = "cell-border stripe", filter = "top", rownames =
 
 ```{r basic revenue edr}
 basic.rev.edr <- original %>%
-  filter(group %in% c(1,3,4,5)) %>%
+  filter(group %in% c(1,4)) %>%
   drop_na(edr) %>%
   group_by(edr) %>%
   summarize(`Adjusted pupil units` = sum(awadm22, na.rm = TRUE),

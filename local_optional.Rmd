@@ -1,0 +1,300 @@
+---
+title: "Local Optional"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+
+For a school district that had a referendum prior to 2016, a district’s local optional revenue offsets the first $724 per pupil of referendum revenue. For school districts with referendum authority above this amount, local optional revenue provided no direct additional revenue. This offers two tiers; which i don’t understand.
+
+<br>
+
+# State legislation
+[Subd. 2e.Local optional revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.2e)
+ 
+a) For fiscal year 2021 and later, local optional revenue for a school district equals the sum of the district's first tier local optional revenue and second tier local optional revenue. A district's first tier local optional revenue equals $300 times the adjusted pupil units of the district for that school year. A district's second tier local optional revenue equals $424 times the adjusted pupil units of the district for that school year.
+b) For fiscal year 2021 and later, a district's local optional levy equals the sum of the first tier local optional levy and the second tier local optional levy.
+c) A district's first tier local optional levy equals the district's first tier local optional revenue times the lesser of one or the ratio of the district's referendum market value per resident pupil unit to $880,000.
+d) For fiscal year 2022, a district's second tier local optional levy equals the district's second tier local optional revenue times the lesser of one or the ratio of the district's referendum market value per resident pupil unit to $510,000. For fiscal year 2023, a district's second tier local optional levy equals the district's second tier local optional revenue times the lesser of one or the ratio of the district's referendum market value per resident pupil unit to $548,842. For fiscal year 2024 and later, a district's second tier local optional levy equals the district's second tier local optional revenue times the lesser of one or the ratio of the district's referendum market value per resident pupil unit to $510,000.
+e) The local optional levy must be spread on referendum market value. A district may levy less than the permitted amount.
+f) A district's local optional aid equals its local optional revenue minus its local optional levy. If a district's actual levy for first or second tier local optional revenue is less than its maximum levy limit for that tier, its aid must be proportionately reduced.
+
+# Data
+This is a horizontal funding mechanism meant to help provide further support to school districts with lower property values.
+
+The table below provides every school district (no charters since they are not eligible for this revenue) with their local optional revenue, levy and aid. The values below are;
+
+* locrev: local optional revenue
+* loclvytier1: Local levy tier 1
+* loclvytier2: Local levy tier 2
+
+The total local optional revenue aid is locrev - loclvytier1 - loclvytier2
+
+```{r local optional districts}
+local.optional.dist <- original %>%
+  filter(group %in% c(1)) %>%
+  select(`District Name`, group,dist, type, `County Name`, locrev, loclvytier1, loclvytier2, locaid)
+
+datatable(local.optional.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:7)))) %>%
+  formatCurrency(5:8, "$", digits = 2)
+
+
+
+```
+
+<br>
+
+## Local optional revenue aid per APU{.tabset}
+
+Let's check to see if there are differences in local optional aid per APU by RUCA category and region.
+
+As expected, the tables show that as a county or region becomes more rural, the more local optional aid those districts receive. 
+
+In the RUCA categories, entirely rural counties received $297.63 per APU in aid while entirely urban counties received $76.10 per APU.
+
+In the planning regions, Northwest and Southweset received the highest amount with $204.22 per APU and $248.33 per APU while the seven county metro received the lowest with $64.87 per APU.
+
+Amongst the EDRs, EDR 6W - Southwest received the most by far with $357.44 per APU while EDR 11 received $64.87.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r local optional per apu ruca}
+local.optional.apu.ruca <- original %>%
+  filter(group %in% c(1)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, awadm22, locaid) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22),
+            locaid = sum(locaid)) %>%
+  ungroup() %>%
+  mutate(locaid.apu = locaid / awadm22)
+
+datatable(local.optional.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+```{r local optional per apu pr}
+local.optional.apu.pr <- original %>%
+  filter(group %in% c(1)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, awadm22, locaid) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22),
+            locaid = sum(locaid)) %>%
+  ungroup() %>%
+  mutate(locaid.apu = locaid / awadm22)
+
+datatable(local.optional.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r local optional per apu edr}
+local.optional.apu.edr <- original %>%
+  filter(group %in% c(1)) %>%
+  drop_na(edr) %>%
+  select(edr, awadm22, locaid) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22),
+            locaid = sum(locaid)) %>%
+  ungroup() %>%
+  mutate(locaid.apu = locaid / awadm22)
+
+datatable(local.optional.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+Finally, lets check to see what it's like by county.
+
+The map below shows pretty clearly that our rural counties in southwest, western, and northwest Minnesota receive the highest local optional revenue per APU.
+
+<br>
+
+```{r local optional aid county}
+local.optional.apu.county <- original %>%
+  filter(group == 1) %>%
+  select(`County Name`, awadm22, locaid) %>%
+  group_by(`County Name`) %>%
+  summarize(awadm22 = sum(awadm22),
+            locaid = sum(locaid)) %>%
+  ungroup() %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  filter(`County Name` != "Minnesota") %>%
+  mutate(locaid.apu = locaid / awadm22,
+         locaid.apu.bins = cut(locaid.apu,
+                               breaks = c(-1, 0, 100, 200, 300, 1000000),
+                               labels = c("$0", "$1-$100", "$100-$200", "$200-$300", "More than $300"))) %>%
+  left_join(mn_counties[c(4,7)], by = "countyfp")
+
+local.optional.apu.county.plot <- ggplot(local.optional.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = locaid.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nTotal local optional aid: ", dollar(locaid), "\nLocal optional aid per APU: ", dollar(locaid.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Local optional aid per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = local.optional.apu.county.plot, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```

@@ -580,6 +580,8 @@ datatable(dec.enr.apu.edr, class = "cell-border stripe", filter = "top", rowname
 
 <br>
 
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
 Let's check to see what it looks like at the county level. The map below is the total declining enrollment revenue per APU in the county. This is not an average.
 
 The map shows that the revenue is distributed pretty evenly across western and northern Minnesota. The revenue per APU is lowers around central Minnesota and Southeast.
@@ -616,9 +618,6 @@ dec.enr.apu.county.plot <- ggplot(dec.enr.apu.county) +
 
 girafe(ggobj = dec.enr.apu.county.plot, height_svg = 10, width_svg = 10) %>%
   girafe_options(opts_sizing(rescale = FALSE))
-
-ggplot(dec.enr.apu.county, aes(dec.enr.apu)) +
-  geom_histogram()
 
 ```
 

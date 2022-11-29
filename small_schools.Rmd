@@ -464,6 +464,8 @@ datatable(small.schools.apu.edr, class = "cell-border stripe", filter = "top", r
 
 Let's check to see if the charter schools in each RUCA category and region are driving these interesting values.
 
+Yes, they absolutely are driving these comparisons. In every category and region, small schools revenue per APU is significantly higher among charter schools than school districts. In many cases, its about double.
+
 <br>
 
 ### RUCA
@@ -569,6 +571,108 @@ girafe(ggobj = small.schools.apu.group.pr.plot, width_svg = 10, height_svg = 10)
 
 <br>
 
+```{r small schools per apu group edr}
+small.schools.apu.group.edr <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(edr, group, awadm22, smlrev) %>%
+  group_by(edr, group) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(small.schools.apu = smlrev / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(1,6,3,4,5)
 
+small.schools.apu.group.edr.2 <- small.schools.apu.edr %>%
+  rename(awadm22 = 2, 
+         smlrev = 3,
+         small.schools.apu = 4) %>%
+  mutate(Definition = "Combined")
+
+small.schools.apu.group.edr <- small.schools.apu.group.edr %>%
+  rbind(small.schools.apu.group.edr.2) %>%
+  left_join(regions, by = "edr") %>%
+  mutate(data_id = seq(n()),
+         Definition = fct_relevel(Definition, "School Districts", "Charter Schools", "Combined"))
+
+
+small.schools.apu.group.edr.plot <- ggplot(small.schools.apu.group.edr, aes(edr, small.schools.apu, fill = Definition, group = Definition)) +
+  facet_wrap(~planning.region, ncol = 2, scales = "free_x") +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(edr, "\n", Definition, "\nAdjusted pupil units: ", comma(awadm22, accuracy = 1), "\nSmall schools revenue: ", dollar(smlrev), "\nSmall schools revenue per APU: ", dollar(small.schools.apu), sep = ""))) +
+  geom_label(aes(label = dollar(small.schools.apu)), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Small schools revenue per APU by edr and school type")+
+  scale_y_continuous(labels=scales::dollar)+
+  scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+
+girafe(ggobj = small.schools.apu.group.edr.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+
+<br>
+
+### County map
+
+<br>
+
+```{r small schools per apu group county}
+small.schools.apu.group.county <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(`County Name`, group, awadm22, smlrev) %>%
+  group_by(`County Name`, group) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(small.schools.apu = smlrev / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(1,6,3,4,5)
+
+small.schools.apu.group.county.2 <- original %>%
+  filter(group %in% c(1,4),
+         smlrev > 0) %>%
+  select(`County Name`, awadm22, smlrev) %>%
+  group_by(`County Name`) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            smlrev = sum(smlrev, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(small.schools.apu = smlrev / awadm22,
+         Definition = "Combined")
+
+small.schools.apu.group.county.3 <- small.schools.apu.group.county %>%
+  rbind(small.schools.apu.group.county.2) %>%
+  mutate(Definition = fct_relevel(Definition, "School Districts", "Charter Schools", "Combined")) %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  complete(`County Name`, Definition)  %>%
+  group_by(`County Name`) %>%
+  fill(countyfp, .direction = "updown") %>%
+  drop_na(Definition) %>%
+  filter(`County Name` != "Minnesota") %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp")
+
+small.schools.apu.group.county.3.map <- ggplot(small.schools.apu.group.county.3) +
+  facet_wrap(~Definition, ncol = 2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = small.schools.apu, data_id = countyfp, tooltip = paste(`County Name`, "\nSchool type: ", Definition, "\nAPU: ", comma(awadm22, accuracy = 1), "\nSmall schools revenue: ", dollar(smlrev), "\nSmall schools revenue per APU: ", dollar(small.schools.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::dollar) +
+  labs(title = "Small schools revenue per APU by school district county") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = small.schools.apu.group.county.3.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+test <- original %>%
+  select(`District Name`, `County Name`, awadm22)
+```
 
 <br>

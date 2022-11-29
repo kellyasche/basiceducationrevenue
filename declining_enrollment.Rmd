@@ -1,0 +1,627 @@
+---
+title: "Declining Enrollment"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+Since 1971, Declining Enrollment Aid has been a vital revenue source for rural districts.
+
+In 2013, the legislature passed the current version of this aig program, which provides 28% of the formula allowance for that year multiplied by the loss in adjusted pupil units from the proceeding year.
+
+Revenue equals the greater of zero or 28% of the formula allowance for that year and the difference between adjusted pupil units for the current year and the adjusted pupil units for the previous year.
+
+Declining Enrollment Aid is tied to the basic formula meaning every percentage increase in the basic formula allowance equates in an increase in aid districts receive for Declining Enrollment Revenue.
+
+<br>
+
+# State Legislation
+
+[Subd. 2d.Declining enrollment revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.2d)
+ 
+a) A school district's declining enrollment revenue equals the greater of zero or the product of:
+    + 28 percent of the formula allowance for that year and
+    + the difference between the adjusted pupil units for the preceding year and the adjusted pupil units for the current year.
+b) Notwithstanding paragraph (a), for fiscal year 2024 only, prekindergarten pupil units under section 126C.05, subdivision 1, paragraph (d), must be excluded from the calculation of declining enrollment revenue.
+
+<br>
+
+# Data
+
+The following breakdowns use data from FY22. 
+
+Declining enrollment revenue is a vertical funding mechanism, meaning it's targeted to schools with declining enrollment. The purpose is to lessen the blow of declining enrollment has on a school district.
+
+The table below provides the following information for every school district;
+
+* declpu: the decline in APU from FY21 to FY22. If value is 0, than they had enrollment growth and do not qualify for funding,
+* decalo: this is 28% of the FY22 basic revenue ($6,728),
+* decrev: total declining enrollment revenue received.
+
+<br>
+
+```{r declining enrollment districts}
+dec.enr.dist <- original %>%
+  filter(group %in% c(1,4)) %>%
+    select(`District Name`, dist, type, `County Name`, declpu, decalo, decrev) 
+
+datatable(dec.enr.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 0:6)))) %>%
+  formatCurrency(5, "", digits = 2) %>%
+  formatCurrency(6:7, "$")
+```
+
+<br>
+
+Of the `r nrow(dec.enr.dist)` total schools in the dataset `r nrow(filter(dec.enr.dist, declpu > 0))` (`r percent(nrow(filter(dec.enr.dist, declpu > 0)) / nrow(dec.enr.dist))`) schools receive declining enrollment revenue. 
+
+<br>
+
+## Eligible schools{.tabset}
+
+Next lets check to see if there are differences in schools receiving this funding by whether they are a charter or district.
+
+The chart below shows that 40% of school districts received declining enrollment revenue while only 28% of charter schools received it.
+
+<br>
+
+```{r declining enrollment eligibility group}
+dec.enr.elg.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(group, decrev) %>%
+  mutate(eligible = ifelse(decrev > 0, "Eligible", "Not eligible")) %>%
+  group_by(group, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, eligible, n) %>%
+  spread(eligible, n) %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`))
+
+datatable(dec.enr.elg.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+Next, lets check to see if there are major differences by RUCA category and regions.
+
+The tables below provide the number of schools that are eligible, not eligible, and the percent of schools that received declining enrollment funding.
+
+The results are a bit surprising. I think the narrative that rural schools are losing enrollment would mean that our entirely rural counties would have the highest percentage of schools receiving these funds. However, that isn't the case. As expected, entirely urban counties had the lowest percentage of schools receiving this revenue with 30%. But this is followed closely by entirely rural counties with 32%. The highest is actually in urban/town/rural mix districts with 46%.
+
+This trend follows in the regions. The seven county metro schools have the lowest percentage with 31% followed by Northwest schools with 32%. While the highest is actually in the Southeast school districts with 45%. 
+
+When broken down by EDR, the lowest percentage of schools receiving declining enrollment was EDR 2 - headwaters (24%) and EDR 5 - North Central (25%) and then EDR 11 - Seven county metro (31%). The highest percentages occured in EDR 6E - Southwest central (53%), EDR 8 - Southwest (48%) and EDR 10 - Southeast (45%).
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r declining enrollment eligibility ruca}
+dec.enr.elg.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, decrev) %>%
+  mutate(eligible = ifelse(decrev > 0, "Eligible", "Not eligible")) %>%
+  group_by(Dem_Desc, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`))
+
+datatable(dec.enr.elg.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r declining enrollment eligibility pr}
+dec.enr.elg.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, decrev) %>%
+  mutate(eligible = ifelse(decrev > 0, "Eligible", "Not eligible")) %>%
+  group_by(planning.region, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`))
+
+datatable(dec.enr.elg.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r declining enrollment eligibility edr}
+dec.enr.elg.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  select(edr, decrev) %>%
+  mutate(eligible = ifelse(decrev > 0, "Eligible", "Not eligible")) %>%
+  group_by(edr, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`))
+
+datatable(dec.enr.elg.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+So why the unusual percentages? Perhaps it's due to the composition of charter vs. districts in each RUCA category and region. Let's check.
+
+The ruca categories shows that, indeed, charter schools bring down the percentage of eligible schools for our entirely urban counties. 25% of charter schools in these counties received declining enrollment revenue and charter schools make up a majority of schools in our entirely urban counties.  In our entirely rural counties, charter schools have a higher percentage of schools that receive declining enrollment revenue however there are only 5 charter schools in these counties.  Another intersting thing to now is that ther is a higher percentage of districts and charter schools that receiving declining enrollment in our urban/town/rural mix counties.
+
+The regions follow this trend as well. Many of the rural planning regions don't have a lot of charter schools so for these regions, districts lead the trends in terms of total percentage of schools that receive this revenue.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r declining enrollment eligibility group ruca}
+dec.enr.elg.group.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, group, decrev) %>%
+  mutate(eligible = ifelse(decrev > 0, "Eligible", "Not eligible")) %>%
+  group_by(Dem_Desc, group, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Dem_Desc, Definition, Eligible, `Not eligible`, Pct)
+
+dec.enr.elg.group.ruca.2 <- dec.enr.elg.ruca %>%
+  mutate(Definition = "Combined") %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`))
+
+dec.enr.elg.group.ruca.3 <- dec.enr.elg.group.ruca %>%
+  rbind(dec.enr.elg.group.ruca.2) %>%
+  mutate(data_id = seq(n()))
+
+dec.enr.elg.group.ruca.3.plot <- ggplot(dec.enr.elg.group.ruca.3, aes(Dem_Desc, Pct, fill = Definition, group = Definition)) +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(Dem_Desc, "\nType of school: ", Definition, "\nNumber of schools eligible for declining enrollment revenue: ", comma(Eligible, accuracy = 1), "\nNumber of schools not eligible: ", comma(`Not eligible`, accuracy = 1), "\nPercent of schools eligible: ", percent(Pct, accuracy = .1), sep = ""))) +
+  geom_label(aes(label = percent(Pct, accuracy = .1)), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Percent of schools receiving declining enrollment revenue")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+
+girafe(ggobj = dec.enr.elg.group.ruca.3.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r declining enrollment eligibility group pr}
+dec.enr.elg.group.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, group, decrev) %>%
+  mutate(eligible = ifelse(decrev > 0, "Eligible", "Not eligible")) %>%
+  group_by(planning.region, group, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(planning.region, Definition, Eligible, `Not eligible`, Pct)
+
+dec.enr.elg.group.pr.2 <- dec.enr.elg.pr %>%
+  mutate(Definition = "Combined") %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`))
+
+dec.enr.elg.group.pr.3 <- dec.enr.elg.group.pr %>%
+  rbind(dec.enr.elg.group.pr.2) %>%
+  mutate(data_id = seq(n()))
+
+dec.enr.elg.group.pr.3.plot <- ggplot(dec.enr.elg.group.pr.3, aes(planning.region, Pct, fill = Definition, group = Definition)) +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(planning.region, "\nType of school: ", Definition, "\nNumber of schools eligible for declining enrollment revenue: ", comma(Eligible, accuracy = 1), "\nNumber of schools not eligible: ", comma(`Not eligible`, accuracy = 1), "\nPercent of schools eligible: ", percent(Pct, accuracy = .1), sep = ""))) +
+  geom_label(aes(label = percent(Pct, accuracy = .1)), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Percent of schools receiving declining enrollment revenue")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18),
+        axis.text.x = element_text(angle = 25, hjust = 1))
+
+
+girafe(ggobj = dec.enr.elg.group.pr.3.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r declining enrollment eligibility group edr}
+dec.enr.elg.group.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  select(edr, planning.region, group, decrev) %>%
+  mutate(eligible = ifelse(decrev > 0, "Eligible", "Not eligible")) %>%
+  group_by(edr, planning.region, group, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(edr, planning.region, Definition, Eligible, `Not eligible`, Pct)
+
+dec.enr.elg.group.edr.2 <- dec.enr.elg.edr %>%
+  mutate(Definition = "Combined") %>%
+  mutate(Pct = Eligible / (Eligible + `Not eligible`)) %>%
+  left_join(regions, by = "edr")
+
+dec.enr.elg.group.edr.3 <- dec.enr.elg.group.edr %>%
+  rbind(dec.enr.elg.group.edr.2) %>%
+  mutate(data_id = seq(n()))
+
+dec.enr.elg.group.edr.3.plot <- ggplot(dec.enr.elg.group.edr.3, aes(edr, Pct, fill = Definition, group = Definition)) +
+  facet_wrap(~planning.region, ncol = 2, scales = "free_x") +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(edr, "\nType of school: ", Definition, "\nNumber of schools eligible for declining enrollment revenue: ", comma(Eligible, accuracy = 1), "\nNumber of schools not eligible: ", comma(`Not eligible`, accuracy = 1), "\nPercent of schools eligible: ", percent(Pct, accuracy = .1), sep = ""))) +
+  geom_label(aes(label = percent(Pct, accuracy = .1)), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Percent of schools receiving declining enrollment revenue")+
+  scale_y_continuous(labels=scales::percent)+
+  scale_x_discrete(guide = guide_axis(n.dodge = 2)) +
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+
+girafe(ggobj = dec.enr.elg.group.edr.3.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+## Declining enrollment revenue per APU{.tabset}
+
+Next lets check to see how evenly this revenue is distributed. We will start out by checking charters vs. districts.
+
+The table provides the summary statistics of the amount of declining enrollment revenue per APU received by eligible districts for charter schools and districts.
+
+As the table below shows, charter schools, on average, receive more declining enrollment revenue per APU than district schools - $166.60 vs. $75.49 per APU.
+
+<br>
+
+```{r declining enrollment per APU group}
+dec.enr.apu.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(group, awadm22, decrev) %>%
+  filter(decrev > 0) %>%
+  mutate(decrev.apu = decrev / awadm22) %>%
+  group_by(group) %>%
+  summarise(n = n(),
+            min = min(decrev.apu),
+            max = max(decrev.apu),
+            mean = mean(decrev.apu),
+            median = median(decrev.apu),
+            sd = sd(decrev.apu)) %>%
+  ungroup() %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, 2:7)
+
+datatable(dec.enr.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)))) %>%
+  formatCurrency(2:7 , "$", digits = 2)
+
+```
+
+<br>
+
+Now let's see if RUCA categories and planning regions make a difference.
+
+The tables below show that our more rural areas of the state on average receive a higher declining enrollment revenue per APU compared to other areas. OUr entirely rural counties receive $162.18/APU compared to $102.62/APU for our entirely urban counties. Although, it is worth mentioning the mean and median for the entirely urban counties are very far apart.. Surprisingly, the lowest is our urban/town/rural mix counties with an average of $85.70.
+
+When looking per region, Southwest has the lowest value of $57.76 per APU which is a bit surprising. This is followed by Northwest with $76.88. Northeast has the highest with $142.64 per APU.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r declining enrollment per apu ruca}
+dec.enr.apu.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, awadm22, decrev) %>%
+  filter(decrev > 0) %>%
+  mutate(decrev.apu = decrev / awadm22) %>% 
+  group_by(Dem_Desc) %>%
+  summarize(n = n(),
+            min = min(decrev.apu),
+            max = max(decrev.apu),
+            mean = mean(decrev.apu),
+            median = median(decrev.apu),
+            sd = sd(decrev.apu)) %>%
+  ungroup()
+
+datatable(dec.enr.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)))) %>%
+  formatCurrency(3:7, "$")
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r declining enrollment per apu pr}
+dec.enr.apu.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, awadm22, decrev) %>%
+  filter(decrev > 0) %>%
+  mutate(decrev.apu = decrev / awadm22) %>% 
+  group_by(planning.region) %>%
+  summarize(n = n(),
+            min = min(decrev.apu),
+            max = max(decrev.apu),
+            mean = mean(decrev.apu),
+            median = median(decrev.apu),
+            sd = sd(decrev.apu)) %>%
+  ungroup()
+
+datatable(dec.enr.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)))) %>%
+  formatCurrency(3:7, "$")
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r declining enrollment per apu edr}
+dec.enr.apu.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  select(edr, awadm22, decrev) %>%
+  filter(decrev > 0) %>%
+  mutate(decrev.apu = decrev / awadm22) %>% 
+  group_by(edr) %>%
+  summarize(n = n(),
+            min = min(decrev.apu),
+            max = max(decrev.apu),
+            mean = mean(decrev.apu),
+            median = median(decrev.apu),
+            sd = sd(decrev.apu)) %>%
+  ungroup()
+
+datatable(dec.enr.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)))) %>%
+  formatCurrency(3:7, "$")
+
+```
+
+<br>
+
+Let's check to see what it looks like at the county level. The map below is the total declining enrollment revenue per APU in the county. This is not an average.
+
+The map shows that the revenue is distributed pretty evenly across western and northern Minnesota. The revenue per APU is lowers around central Minnesota and Southeast.
+
+<br>
+
+```{r declining enrollment per apu county}
+dec.enr.apu.county <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(`County Name`) %>%
+  select(`County Name`, awadm22, decrev) %>%
+  filter(decrev > 0) %>%
+  group_by(`County Name`) %>%
+  summarize(n = n(),
+            awadm22 = sum(awadm22),
+            decrev = sum(decrev)) %>%
+  ungroup() %>%
+  mutate(dec.enr.apu = decrev / awadm22) %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  filter(`County Name` != "Minnesota") %>%
+  mutate(dec.enr.apu = ifelse(is.na(dec.enr.apu), 0, dec.enr.apu),
+         dec.enr.apu.bins = cut(dec.enr.apu,
+                                breaks = c(-1, 0, 25, 50, 75, 100, 10000),
+                                labels = c("$0", "$1-$25", "$25-$50", "$50-$75", "$75-$100", "More than $100"))) %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp")
+
+dec.enr.apu.county.plot <- ggplot(dec.enr.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = dec.enr.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nNumber of schools eligible: ", comma(n, accuracy = 1), "\nAPU: ", comma(awadm22, accuracy = 1), "\nTotal declining enrolllment revenue: ", dollar(decrev), "\nDeclining enrollment revenue per APU: ", dollar(dec.enr.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Average declining enrollment revenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = dec.enr.apu.county.plot, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+ggplot(dec.enr.apu.county, aes(dec.enr.apu)) +
+  geom_histogram()
+
+```
+
+<br>
+
+

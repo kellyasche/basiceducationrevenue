@@ -1,0 +1,340 @@
+---
+title: "Basic skills - compensatory"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+This program is meant to help meet the educational needs of students who are under-prepared to learn and whose progress toward meeting state or local performance standards is below the level that is appropriate for their age.
+
+Basic skills is split into two parts. The first is compensatory.
+
+Compensatory is a site-based revenue and at least 50% of the revenue must be distributed to qualifying programs at each site. The revenue must be used to meet the educational needs of pupils whose progress toward meeting state or local content or performance standards is below the level that is appropriate for learners of their age. This revenue must  be put into a separate account. Revenue increases as the number of compensatory pupil units goes up, which is driven by the number of free and reduced price meals. 
+
+A pupil is counted as compensatory pupil if the pupil is eligible for free or reduced priced meals, which is set by the Federal government at 130% and 185 % of the federal poverty guidelines.
+
+The formula is;
+
+* Calculate the building concentration factor, which is equal to the ratio of the number of pupils eligible for free lunch plus half of the number of pupils eligible for reduced price meals.
+* Calculate a building weighting factor equal to the less of: 1, or the building’s concentration factor divided by .8.
+* Multiply the compensation pupils calculated in step 1 by the weighting factor in step 2 by .6
+
+Another way to look at the formula;
+
+* Compensatory Revenue = (Basic Formula Allowance - $839) x .6 x Compensatory Pupil Units
+* Compensatory Pupil Units = (free lunch students + .5 x reduced lunch students) x the less of:
+  + one, or
+  + (free lunch students + .5 x reduced lunch students) / building ADM / .8
+
+<br>
+
+# State Legislation
+[Subd. 3.Compensatory education revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.3)
+ 
+a) The compensatory education revenue for each building in the district equals the formula allowance minus $839 times the compensation revenue pupil units computed according to section 126C.05, subdivision 3. A district's compensatory revenue equals the sum of its compensatory revenue for each building in the district and the amounts designated under Laws 2015, First Special Session chapter 3, article 2, section 70, subdivision 8, for fiscal year 2017. Revenue shall be paid to the district and must be allocated according to section 126C.15, subdivision 2.
+b) When the district contracting with an alternative program under section 124D.69 changes prior to the start of a school year, the compensatory revenue generated by pupils attending the program shall be paid to the district contracting with the alternative program for the current school year, and shall not be paid to the district contracting with the alternative program for the prior school year.
+c) When the fiscal agent district for an area learning center changes prior to the start of a school year, the compensatory revenue shall be paid to the fiscal agent district for the current school year, and shall not be paid to the fiscal agent district for the prior school year.
+
+<br>
+
+# Data
+This is a vertical funding mechanism. It's meant to target a specific student population considered to require more resources to educate.
+
+The compensatory revenue is fully calculated by MDE and it's provided in the variable afdc22. Unfortunately, we are not provided the concentration of free and reduced lunch pupil units in the dataset.
+
+The table below shows that all but five schools receive some compensatory revenue.
+
+<br>
+
+```{r compensatory district}
+comp.dist <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, group, dist, type, `County Name`, afdc22)
+
+datatable(comp.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatCurrency(6, "$", digits = 0) 
+
+```
+ 
+ <br>
+ 
+## Compensatory revenue per APU{.tabset}
+ 
+To get a sense of how varied the student population being served is in terms of poverty, lets break this up to show districts vs. charter, RUCA categories and regions receiving compensatory revenue per APU.
+
+We will begin with looking at district vs. charter. The table below shows that charter schools receive significantly more per APU in compensatory revenue than school districts - $1,217.44 vs. $444.70.
+
+<br>
+
+```{r compensatory group}
+comp.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(group, awadm22, afdc22) %>%
+  group_by(group) %>%
+  summarize(awadm22 = sum(awadm22),
+            afdc22 = sum(afdc22)) %>%
+  ungroup() %>%
+  mutate(comprev.apu = afdc22 / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, awadm22, afdc22, comprev.apu)
+
+datatable(comp.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+
+```
+
+<br>
+
+Next, lets check to see what it looks like by RUCA category and regions.
+
+The RUCA categories show an interesting comparison. It indicates that very rural areas and very urban areas serve a similar proportion of students that are eligible for free or reduced lunch. Entirely urban areas receive $542 per APU, while entirely rural is right behind with $536 per APU, and town/rural mix counties with $528 per APU. The urban/town/rural mix county group is far behind with $367 per APU.
+
+The comparisons begin to separate more when looking the revenue by planning regions. The seven county metro is way ahead in terms of compensatory revenue per APU with $591 per APU followed by Northwest with $476 per APU. Way behind is Central with $296 per APU.
+
+Even more interesting is the EDR breakdown. EDR 2 - Headwaters jumps way up with $963 per APU followed way behind by the seven county metro with $591 per APU. There are quite a few EDRs around the $400 - $500 per APU range. Way down low are those EDRs in Central region which range between $200 - $400 per APU.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r compensatory ruca}
+comp.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, awadm22, afdc22) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22),
+            afdc22 = sum(afdc22)) %>%
+  ungroup() %>%
+  mutate(comprev.apu = afdc22 / awadm22)
+
+datatable(comp.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+
+```
+
+<br>
+
+### Planning Regions
+
+<br>
+
+```{r compensatory pr}
+comp.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, awadm22, afdc22) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22),
+            afdc22 = sum(afdc22)) %>%
+  ungroup() %>%
+  mutate(comprev.apu = afdc22 / awadm22)
+
+datatable(comp.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r compensatory edr}
+comp.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  select(edr, awadm22, afdc22) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22),
+            afdc22 = sum(afdc22)) %>%
+  ungroup() %>%
+  mutate(comprev.apu = afdc22 / awadm22)
+
+datatable(comp.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+The map below provides the compensatory revenue per APU for schools located in each county. It shows that the highest revenue per APU is found in counties where we typically see the highest percentages of poverty in socio-economic data. 
+
+The north-central lakes region, some of our furtherst western counties, along the southern border of Minnesota and our interior urban counties in the seven county metro. On the other hand, some of the lowest compensatory per APU is found in the suburban counties. Moderate levels of revenue are scattered throughout a large majority of counties across rural Minnesota.
+
+<br>
+
+```{r compensatory per apu county}
+comp.county <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(`County Name`) %>%
+  select(`County Name`, awadm22, afdc22) %>%
+  group_by(`County Name`) %>%
+  summarize(awadm22 = sum(awadm22),
+            afdc22 = sum(afdc22)) %>%
+  ungroup() %>%
+  mutate(comprev.apu = afdc22 / awadm22,
+         comprev.apu.bins = cut(comprev.apu,
+                                breaks = c(0, 250, 500, 750, 1000, 1000000),
+                                labels = c("$1-$250", "$250-$500", "$500-$750", "$740-$1,000", "More than $1,000"))) %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  right_join(mn_counties[,c(4,7)], by = "countyfp")
+
+comp.county.plot <- ggplot(comp.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = comprev.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nCompensatory revenue: ", dollar(afdc22), "\nCompesnatory revenue per APU: ", dollar(comprev.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Compensatory revenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.county.plot, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+

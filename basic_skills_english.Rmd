@@ -1,0 +1,498 @@
+---
+title: "Basic skills - english learners"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+This program is meant to help meet the educational needs of students who are under-prepared to learn and whose progress toward meeting state or local performance standards is below the level that is appropriate for their age.
+
+The current statute on compensatory revenue was originally passed by the state legislature in 1987. The compensatory revenue along with English Learner Revenue is collectively called “basic skills revenue”.
+
+This funding can be used for the following;
+
+1. Direct instructional services under assurance of mastery program, 
+2. Remedial instruction in reading, language arts, mathematics, or other content areas, or study skills to improve the achievement level of these learners 
+3. Additional teachers and teacher aides, 
+4. Provide a longer school day or week during regular school year or summer program, 
+5. Comprehensive and ongoing staff development, 
+6. Instructional materials/digital learning/technology appropriate for meeting the individual needs of these learners, 
+7. Programs to reduce truancy, encourage completion of high school and provide a safe and secure learning environment, 
+8. Bilingual programs, bicultural programs, and programs for English learners, 
+9. All-day kindergarten, 
+10. Early education programs for 4 year old’s and other outreach efforts designed to prepare children for kindergarten. 
+11. Extended school day and extended school year programs, 
+12. Substantial parent involvement in developing and implementing remedial education or intervention plans for a learner. 
+
+Basic skills is split into two parts. The one we are exploring here is for english learners.
+
+English learner revenue: a school district with at least one student eligible for EL services has a statutorily assigned minimum EL pupil count of 20
+
+* Basic EL revenue = $704 x district’s EL pupil units
+* EL concentration pupils = EL pupils x the less of: 1, or (El pupils/ADM)/.115
+* EL Concentration REvenue = $250 x the district’s EL concentration pupils
+
+<br>
+
+# State Legislation
+[Subd. 4.Basic skills revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.4)
+ 
+A school district's basic skills revenue equals the sum of:
+
+1. compensatory revenue under subdivision 3; plus
+2. English learner revenue under section [124D.65, subdivision 5](https://www.revisor.mn.gov/statutes/cite/124D.65#stat.124D.65.5); plus
+3. $250 times the English learner pupil units under section [126C.05, subdivision 17](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.17).
+	
+[124D.65, subdivision 5](https://www.revisor.mn.gov/statutes/cite/124D.65#stat.124D.65.5)
+
+a) A district's English learner programs revenue equals the product of (1) $704 times (2) the greater of 20 or the adjusted average daily membership of eligible English learners enrolled in the district during the current fiscal year.
+b) A pupil ceases to generate state English learner aid in the school year following the school year in which the pupil attains the state cutoff score on a commissioner-provided assessment that measures the pupil's emerging academic English.
+
+[126C.05, subdivision 17](https://www.revisor.mn.gov/statutes/cite/126C.05#stat.126C.05.17).
+
+a) English learner pupil units for fiscal year 2004 and thereafter shall be determined according to this subdivision.
+b) The English learner concentration percentage for a district equals the product of 100 times the ratio of:
+    + the number of eligible English learners in average daily membership enrolled in the district during the current fiscal year; to
+    + the number of pupils in average daily membership enrolled in the district.
+c) The English learner pupil units for each eligible English learner in average daily membership equals the lesser of one or the quotient obtained by dividing the English learner concentration percentage for the pupil's district of enrollment by 11.5.
+d) English learner pupil units shall be counted by the district of enrollment.
+e) Notwithstanding paragraph (d), for the purposes of this subdivision, pupils enrolled in a cooperative or intermediate school district shall be counted by the district of residence.
+f) For the purposes of this subdivision, the terms defined in section 124D.59 have the same meaning.
+
+<br>
+
+# Data
+
+The english learners revenue is a vertical funding mechanism meant to acknowledge the extra resources needed to support students where English is not their primary language. There are two parts to this formula;
+
+1. Basic EL revenue: $704 * EL pupil units (20 minimum)
+2. Concentrated EL revenue: $250 * concentration EL pupils (ratio)
+
+In the data below, these values are provided by:
+
+1. leprev = basic EL revenue
+    + leprat1 = $704
+    + lepadm22_min = EL pupil units (20 minimum)
+2. lepcrev = concentrated EL revenue
+    + leprat2 = $250
+    + lepcpu = concentrated EL pupil units
+3. totlep = total english learner revenue
+
+The total english learners revenue is then leprev + lepcrev. 
+
+The table below provides all of these variables. Out of the `r nrow(filter(original, group %in% c(1,4)))` schools `r nrow(filter(original, totlep > 0, group %in% c(1,4)))` receive english learner revenue.
+
+<br>
+
+```{r english learners district}
+eng.lrn.district <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, group, dist, type, leprat1, lepadm22_min, leprev, leprat2, lepcpu, lepcrev, totlep)
+
+datatable(eng.lrn.district, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)))) %>%
+  formatCurrency(5, "$", digits = 0) %>%
+  formatCurrency(6, "", digits = 0) %>%
+  formatCurrency(7:8, "$", digits = 0) %>%
+  formatCurrency(9, "", digits = 0) %>%
+  formatCurrency(10:11, "$", digits = 0)
+
+```
+
+<br>
+
+## Eligibility{.tabset}
+
+Since both charter and district schools receive english learner funding, let's check to see if there are any differences between them.
+
+The table below provides the percentage of schools that receive english learner revenue by group. It shows that a similar percentage of schools receive english learner revenue no matter if it's a charter or district.
+
+<br>
+
+```{r english learner revenue group}
+eng.lrn.elg.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(eligible = ifelse(totlep > 0, "Yes", "No")) %>%
+  group_by(group, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes+No)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, No, Yes, pct.received)
+
+datatable(eng.lrn.elg.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2:3, "", digits = 0) %>%
+  formatPercentage(4)
+
+
+
+```
+
+<br>
+
+Next, we will check to see if RUCA categories or regions make a difference.
+
+Not suprisingly, there are significant differences across RUCA categories and regions due to the concentration of non-english speakers across Minnesota.
+
+The RUCA categories show a wide gap between entirely rural county schools (46%) vs. entirely urban county schools (80%). The town/rural mix and urban/town/rural mix county schools are very similar with each having 60% of their schools receive this revenue.
+
+The planning regions show a bit more nuance and geographic difference. A lower percentage of schools (30% - 40%) in the northern part of the state receive english learner revenue compared to schools in the southern part of Minnesota (70% - 80%). The highest percentage is in the seven count metro with 83% of their schools receiving this funding.
+
+The edr shows even more nuance. EDRs in the very northern part of the state have the three lowest percentages of schools receiving english learner revenue - EDR 2 (18%), EDR 3 (32%) and EDR 1 (38%). After that, a majority of schools in each EDR receive this revenue. Interestingly, the highest percentage of schools receiving this funding is no logner in the seven county metro. EDR 6W with 83% and EDR 7W with 84% have the highest percentages.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r english learner revenue ruca}
+eng.lrn.elg.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  mutate(eligible = ifelse(totlep > 0, "Yes", "No")) %>%
+  group_by(Dem_Desc, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes+No))
+
+datatable(eng.lrn.elg.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2:3, "", digits = 0) %>%
+  formatPercentage(4)
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r english learner revenue pr}
+eng.lrn.elg.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  mutate(eligible = ifelse(totlep > 0, "Yes", "No")) %>%
+  group_by(planning.region, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes+No))
+
+datatable(eng.lrn.elg.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2:3, "", digits = 0) %>%
+  formatPercentage(4)
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r english learner revenue edr}
+eng.lrn.elg.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  mutate(eligible = ifelse(totlep > 0, "Yes", "No")) %>%
+  group_by(edr, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes+No))
+
+datatable(eng.lrn.elg.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2:3, "", digits = 0) %>%
+  formatPercentage(4)
+```
+
+<br>
+
+## English Learner revenue per APU{.tabset}
+
+Next let's check out the distribution of funds per APU. For this data we will only use schools that received funding.
+
+First we will look at it by charter vs district schools. The table below shows that charter schools receive significantly more english learner revenue per APU compared to school districts - $200 vs. $54. 
+
+<br>
+
+```{r english learner revenue per apu group}
+eng.lrn.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         totlep > 0) %>%
+  select(group, awadm22, totlep) %>%
+  group_by(group) %>%
+  summarize(awadm22 = sum(awadm22),
+            totlep = sum(totlep)) %>%
+  ungroup() %>%
+  mutate(eng.lrn.apu = totlep / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, awadm22, totlep, eng.lrn.apu)
+
+datatable(eng.lrn.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+```
+
+<br>
+
+Next let's check this out by RUCA category and regions.
+
+The RUCA category shows a rather large gap in revenue per APU between entirely urban counties and the other county groups. Entirely urban receives $74 per APU compared to the other county groups which receive between $40 and $50 per APU.
+
+The planning regions show similar comparisons to the eligibilty tables from above. The northern regions receive significantly lower english learner revenue per APU ($7 - $20) compared to southern regions ($50 - $60). The highest was in the seven county metro with $80.
+
+The EDR breakdown is similar to the planning regions. The lowest revenue per APU is in the northern parts of the state ($5 - $30) while southern EDRs have significantly higher ($50 - $100). The highest is in EDR 8 - Southwest with $180 per APU.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r english learner revenue per apu ruca}
+eng.lrn.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         totlep > 0) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, awadm22, totlep) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22),
+            totlep = sum(totlep)) %>%
+  ungroup() %>%
+  mutate(eng.lrn.apu = totlep / awadm22)
+
+datatable(eng.lrn.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r english learner revenue per apu pr}
+eng.lrn.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         totlep > 0) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, awadm22, totlep) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22),
+            totlep = sum(totlep)) %>%
+  ungroup() %>%
+  mutate(eng.lrn.apu = totlep / awadm22)
+
+datatable(eng.lrn.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r english learner revenue per apu edr}
+eng.lrn.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         totlep > 0) %>%
+  drop_na(edr) %>%
+  select(edr, awadm22, totlep) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22),
+            totlep = sum(totlep)) %>%
+  ungroup() %>%
+  mutate(eng.lrn.apu = totlep / awadm22)
+
+datatable(eng.lrn.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+Next let's take a look at this by county.
+
+The map below shows how concentrated english revenue is due to the concentration of english learner populations. There is quite a bit more blue shade in the southern half of the state. Some of the counties with the top revenue per APU are counties with large immigrant and refugee populations, such as Kandiyohi, Lyon, Nobles, Mower and Rice. 
+
+<br>
+
+```{r english learner revenue per apu county}
+eng.lrn.apu.county <- original %>%
+  filter(group %in% c(1,4),
+         totlep > 0) %>%
+  drop_na(`County Name`) %>%
+  select(`County Name`, awadm22, totlep) %>%
+  group_by(`County Name`) %>%
+  summarize(awadm22 = sum(awadm22),
+            totlep = sum(totlep)) %>%
+  ungroup() %>%
+  mutate(eng.lrn.apu = totlep / awadm22,
+         eng.lrn.apu.bins = cut(eng.lrn.apu,
+                                breaks = c(0, 25, 50, 75, 100, 100000),
+                                labels = c("$1-$25", "$25-$50", "$50-$75", "$75-$100", "More than $100"))) %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  right_join(mn_counties[,c(4,7)], by = "countyfp")
+
+eng.lrn.apu.county.map <- ggplot(eng.lrn.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = eng.lrn.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nEnglish learner revenue: ", dollar(totlep), "\nEnglisher learner revenue per APU: ", dollar(eng.lrn.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "English learner revenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = eng.lrn.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```

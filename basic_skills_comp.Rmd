@@ -138,7 +138,24 @@ group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
 # Description
 This program is meant to help meet the educational needs of students who are under-prepared to learn and whose progress toward meeting state or local performance standards is below the level that is appropriate for their age.
 
-Basic skills is split into two parts. The first is compensatory.
+The current statute on compensatory revenue was originally passed by the state legislature in 1987. The compensatory revenue along with English Learner Revenue is collectively called “basic skills revenue”.
+
+This funding can be used for the following;
+
+1. Direct instructional services under assurance of mastery program, 
+2. Remedial instruction in reading, language arts, mathematics, or other content areas, or study skills to improve the achievement level of these learners 
+3. Additional teachers and teacher aides, 
+4. Provide a longer school day or week during regular school year or summer program, 
+5. Comprehensive and ongoing staff development, 
+6. Instructional materials/digital learning/technology appropriate for meeting the individual needs of these learners, 
+7. Programs to reduce truancy, encourage completion of high school and provide a safe and secure learning environment, 
+8. Bilingual programs, bicultural programs, and programs for English learners, 
+9. All-day kindergarten, 
+10. Early education programs for 4 year old’s and other outreach efforts designed to prepare children for kindergarten. 
+11. Extended school day and extended school year programs, 
+12. Substantial parent involvement in developing and implementing remedial education or intervention plans for a learner. 
+
+Basic skills is split into two parts. The one we are exploring here is for compensatory revenue.
 
 Compensatory is a site-based revenue and at least 50% of the revenue must be distributed to qualifying programs at each site. The revenue must be used to meet the educational needs of pupils whose progress toward meeting state or local content or performance standards is below the level that is appropriate for learners of their age. This revenue must  be put into a separate account. Revenue increases as the number of compensatory pupil units goes up, which is driven by the number of free and reduced price meals. 
 

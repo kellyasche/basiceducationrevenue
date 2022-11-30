@@ -1,0 +1,458 @@
+---
+title: "Sparsity"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+
+This is a vertical funding mechanism meant to shore up support for school districts that serve small student population for an area not served by other schools. It acknwledges the challenges associated with the lack of economies of scale to providing education.
+
+There are three parts to this revenue;
+
+1. Secondary schools: takes into account a secondary school’s enrollment, distance from the school to the nearest secondary school, and geographic area of the school attendance area. The formula measures sparsity and isolation of the district and then provides additional revenue to the district using an assumption about how many pupil units are necessary to run an acceptable secondary program. The program assumes 400 secondary pupils in average daily attendance can provide an acceptable secondary program.
+    + Isolation index = the less of 1.5 or square root(.55 x sq. mile attendance area) - 23 / 10 + miles to next nearest high school
+    + Secondary sparsity revenue = sparsity formula allowance x adjusted pupil units x (400 - SADM) / 400 + SADM) x (isollation index - 23) / 10
+2. Elementary formula: provides additional funding for elementary schools that average 20 or fewer pupils per grade and that are 19 miles or more from the next nearest elementary school.
+    + Elementary sparsity revenue = sparsity formula allowance x EADM x (140 - EADM) / (140 + EADM)
+3. Sparsity guarantee: a district that closes a school facility is eligible for at least as much sparsity revenue as it received in the previous school year.
+
+<br>
+
+# State Legislation
+[Subd. 7.Secondary sparsity revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.7)
+
+a) A district's secondary sparsity revenue for a school year equals the sum of the results of the following calculation for each qualifying high school in the district:
+    + the formula allowance for the school year minus $530, multiplied by
+    + the secondary average daily membership of pupils served in the high school, multiplied by
+    + the quotient obtained by dividing 400 minus the secondary average daily membership by 400 plus the secondary daily membership, multiplied by
+    + the lesser of 1.5 or the quotient obtained by dividing the isolation index minus 23 by ten.
+b) A newly formed district that is the result of districts combining under the cooperation and combination program or consolidating under section 123A.48 must receive secondary sparsity revenue equal to the greater of: (1) the amount calculated under paragraph (a) for the combined district; or (2) the sum of the amounts of secondary sparsity revenue the former districts had in the year prior to consolidation, increased for any subsequent changes in the secondary sparsity formula.
+
+[Subd. 8.Elementary sparsity revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.8)
+ 
+A district's elementary sparsity revenue equals the sum of the following amounts for each qualifying elementary school in the district:
+
+1. the formula allowance for the year minus $530, multiplied by
+2. the elementary average daily membership of pupils served in the school, multiplied by
+3. the quotient obtained by dividing 140 minus the elementary average daily membership by 140 plus the average daily membership.
+
+[Subd. 8a.Sparsity revenue for school districts that close facilities.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.8a)
+ 
+A school district that closes a school facility or whose sparsity revenue is reduced by a school closure in another district is eligible for elementary and secondary sparsity revenue equal to the greater of the amounts calculated under subdivisions 6, 7, and 8 or the total amount of sparsity revenue for the previous fiscal year if the school board of the district has adopted a written resolution stating that the district intends to close the school facility, but cannot proceed with the closure without the adjustment to sparsity revenue authorized by this subdivision. The written resolution must be approved by the board and filed with the commissioner of education prior to the start of the fiscal year for which aid under this subdivision is first requested. A school district whose sparsity revenue is affected by a closure in another district is not required to adopt a written resolution under this section.
+
+<br>
+
+# Data
+
+<br>
+
+This data is a vertical funding mechanism since it targets schools with specific characteristics. And, it's only meant for public schools districts, not charter schools. The three components of sparsity revenue are provided below. 
+
+The primary variables are;
+
+* Secondary sparsity revenue: sprev = fa22ss * sadmsc22 * admftr * isoftr
+    + fa22s = $6,728 - $530
+    + sadmsv22 = pupil units for secondary classes (7-12)
+    + admftr = average daily secondary membership quotient
+    + isoftr = isolation index
+* Elementary sparsity revenue: elmspar (provided directly from MDE)
+* Closed facilities sparsity revenue: closedblg (just a 1 or 0 on whether they had a closed facility, if 1, the formula then checks to see if the sparsity revenue is larger from the year prior for that facility)
+* Total sparsity revenue: totspar (this is sprev+elmspar+a check on closedblg)
+
+The table below provides all this information. To understand how the formula works you would do it this way;
+
+**Secondary sparsity revenue**
+
+*sprev = fa22sm x sadmsv22 x admftr x isoftr*
+
+In some cases, this doesn't work because there is a newly formed district due to districts combining. In this case, the sprev might equal the mspar22 value which checks to see which is larger - the current formula for the newly formed district, or the addition of the prior years sparsity revenue for the previous school districts. In the dataset below, there were 4 of these types of scenarios (#2142, #363, #381, #318). All four of these districts received secondary sparsity revenue equal to the sum of prior years revenue.
+
+**Elementary sparsity revenue**
+
+*elmspar*
+
+There is nothing complicated with this one. MDE provided the value.
+
+**Closed facility sparsity revenue**
+
+*closedblg*
+
+This is just a binary number - 1 if there was a closed facility or 0 if not. If 1, then there is a comparison made to the prior years sparsity revenue to see which is larger compared to the year of the closure. 
+
+A good example of this is Aitkin Public School District. Their admftr (average daily membership quotient) is $0 for FY22. But, since they had a closed facility they received sparsity revenue equal to what they received when the facility was open.
+
+**Total sparsity revenue**
+
+*totspar*
+
+This value is all of these calculations and logical checks and is the final amount received by the district.
+
+Looking at the table below, we see that of the `r nrow(filter(original, group == 1))` schools, `r nrow(filter(original, group == 1 & totspar > 0))` receive some form of sparsity revenue.
+
+<br>
+
+```{r sparsity district}
+spar.dist <- original %>%
+  filter(group %in% c(1)) %>%
+  select(`District Name`, group, dist, type, fa22ss, sadmsv22, admftr, isoftr, mspar22,sprev, elmspar, closedblg, totspar)
+
+datatable(spar.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:12)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(5, "$", digits = 0) %>%
+  formatCurrency(6:8, "", digits = 4) %>%
+  formatCurrency(9:10, "$", digits = 0) %>%
+  formatCurrency(11:12, "", digits = 0) %>%
+  formatCurrency(13, "$", digits = 0)
+
+```
+
+<br>
+
+## Eligibility{.tabset}
+
+Let's check to see if there are differences in eligibility for this revenue by RUCA category and regions.
+
+The breakdown by RUCA category isn't too surprising. 84% of schools in entirely rural counties receive this funding while only 3% of entirely urban schools. It's quite a gap between our entirely rural schools and even the town/rural and urban/town/rural mix county schools - 84% compared to 39% and 25% respectively.
+
+The planning region breakdown shows that schools located in Northern and Southwest Minnesota are far more likely to receive this funding - between 40% and 50% in those regions. None of the schools in the seven county metro receive this funding while only 18% receive it in Central MN.
+
+The EDR breakdown provides an even more nuanced picture. Regions around the borders of Minnesota and wrap around have the highest percentages - EDR 6W, EDR 1, EDR 2, EDR 3, and EDR 8 round out the top 5 with percentages ranging from 80% to 50%. The lowest percentags are found in EDRs within central Minnesota.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r sparsity eligibility ruca}
+spar.elg.ruca <- original %>%
+  filter(group %in% c(1)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, totspar) %>%
+  mutate(eligibility = ifelse(totspar > 0, "Yes", "No")) %>%
+  group_by(Dem_Desc, eligibility) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligibility, n) %>%
+  mutate(pct.eligible = Yes / (Yes+No))
+
+datatable(spar.elg.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "", digits = 0) %>%
+  formatPercentage(4)
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r sparsity eligibility pr}
+spar.elg.pr <- original %>%
+  filter(group %in% c(1)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, totspar) %>%
+  mutate(eligibility = ifelse(totspar > 0, "Yes", "No")) %>%
+  group_by(planning.region, eligibility) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligibility, n) %>%
+  mutate(pct.eligible = Yes / (Yes+No))
+
+datatable(spar.elg.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "", digits = 0) %>%
+  formatPercentage(4)
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r sparsity eligibility edr}
+spar.elg.edr <- original %>%
+  filter(group %in% c(1)) %>%
+  drop_na(edr) %>%
+  select(edr, totspar) %>%
+  mutate(eligibility = ifelse(totspar > 0, "Yes", "No")) %>%
+  group_by(edr, eligibility) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligibility, n) %>%
+  mutate(pct.eligible = Yes / (Yes+No))
+
+datatable(spar.elg.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "", digits = 0) %>%
+  formatPercentage(4)
+```
+
+<br>
+
+## Sparsity per APU{.tabset}
+
+Next let's see if there are any big differences in the distribution per APU across RUCA categories and regions. The tables and charts below only include schools that received sparsity funding.
+
+The RUCA breakdown shows that entirely rural schools receive the highest sparsity revenue per APU with $589. This is surprisingly followed closely by urban/town/rural mix county schools with $551 per APU. Town/rural mix county schools receive $337 per APU while entirely urban receive $47.
+
+In the planning region breakdown, our two northern planning regions receive, by far, the highest sparsity revenue per APU with Northeast receiving $688 and Northwest receiving $567. The rest of them follow pretty far behind with revenue ranging from $116 to $241.
+
+In the EDR breakdown, EDR 1 takes the highest amount with $909, followed by EDR 3 and EDR 2 with $688 and $513 respecitively. There are a few EDRs in Southwest that are quite high as well but the top are mostly dominated by EDRs in northern Minnesota.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r sparsity per apu ruca}
+spar.apu.ruca <- original %>%
+  filter(group %in% c(1),
+         totspar > 0) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, awadm22, totspar) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22),
+            totspar = sum(totspar)) %>%
+  ungroup() %>%
+  mutate(totspar.apu = totspar/awadm22)
+
+datatable(spar.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r sparsity per apu pr}
+spar.apu.pr <- original %>%
+  filter(group %in% c(1),
+         totspar > 0) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, awadm22, totspar) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22),
+            totspar = sum(totspar)) %>%
+  ungroup() %>%
+  mutate(totspar.apu = totspar/awadm22)
+
+datatable(spar.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r sparsity per apu edr}
+spar.apu.edr <- original %>%
+  filter(group %in% c(1),
+         totspar > 0) %>%
+  drop_na(edr) %>%
+  select(edr, awadm22, totspar) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22),
+            totspar = sum(totspar)) %>%
+  ungroup() %>%
+  mutate(totspar.apu = totspar/awadm22)
+
+datatable(spar.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+```
+
+<br>
+
+# {.unnumbered .unlisted .toc-ignore .tabset}
+
+Let's check to see what this looks like at the county level.
+
+The map below clearly indicates that our most northern counties receive the most sparsity revenue per APU along with a few counties on our western and southern borders. 
+
+<br>
+
+```{r sparsity per apu county}
+spar.apu.county <- original %>%
+  filter(group %in% c(1),
+         totspar > 0) %>%
+  drop_na(`County Name`) %>%
+  select(`County Name`, awadm22, totspar) %>%
+  group_by(`County Name`) %>%
+  summarize(awadm22 = sum(awadm22),
+            totspar = sum(totspar)) %>%
+  ungroup() %>%
+  mutate(totspar.apu = totspar/awadm22,
+         totspar.apu.bins = cut(totspar.apu,
+                                breaks = c(0, 100, 200, 300, 400, 100000),
+                                labels = c("$1-$100", "$100-$200", "$200-$300", "$300-$400", "More than $400"))) %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  right_join(mn_counties[,c(4,7)], by = "countyfp")
+
+spar.apu.ruca.map <- ggplot(spar.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = totspar.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nSparsity revenue: ", dollar(totspar), "\nSparsity revenue per APUL: ", dollar(totspar.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Sparsity revenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = spar.apu.ruca.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+

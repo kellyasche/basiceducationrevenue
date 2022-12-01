@@ -1,0 +1,302 @@
+---
+title: "Operating Capital"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+
+Operating capital revenue must be reserved and used for equipment and facility needs. The computation is, the sum of $79 per pupil unit and the product of $109 per pupil unit and the district’s average building age index. The age index is called the maintenance cost index (MCI) and is calculated as follows;
+
+* MCI = (weighted square footage of buildings) / (Unweighted square footage of buildings)
+* The weighted square food is the bildings square footage times the lesser of 1.5 or the sum of 1 + (the age of each building or addition / 100).
+		
+Operating capital revenue is provided through an equalized aid and levy and is computed as follows
+
+* Operating capital revenue - [$79 + (MCI x $109)] x adjusted pupil units
+* Operating capital levy = Operating capital revenue x the less of 1 or (adjusted net tax capacity /Adjusted Pupil Units) / $23,885
+* Operating capital aid = Operating Capital Revenue - Operating Capital Levy
+
+<br>
+
+# State Legislation
+[Subd. 13.Total operating capital revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.13)
+ 
+a) Total operating capital revenue for a district equals the amount determined under paragraph (b) or (c), plus $79 times the adjusted pupil units for the school year. The revenue must be placed in a reserved account in the general fund and may only be used according to subdivision 14.
+b) Capital revenue for a district equals $109 times the district's maintenance cost index times its adjusted pupil units for the school year.
+c) The revenue for a district that operates a program under section 124D.128, is increased by an amount equal to $31 times the number of adjusted pupil units served at the site where the program is implemented.
+
+[Subd. 13a.Operating capital levy.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.13a)
+ 
+To obtain operating capital revenue, a district may levy an amount not more than the product of its operating capital revenue for the fiscal year times the lesser of one or the ratio of its adjusted net tax capacity per adjusted pupil unit to the operating capital equalizing factor. The operating capital equalizing factor equals $23,902 for fiscal year 2020, $23,885 for fiscal year 2021, and $22,912 for fiscal year 2022 and later.
+
+[Subd. 13b.Operating capital aid.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.13b)
+ 
+A district's operating capital aid equals its operating capital revenue minus its operating capital levy times the ratio of the actual amount levied to the permitted levy.
+
+[Subd. 14.Uses of total operating capital revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.14)
+
+1. to acquire land for school purposes;
+2. to acquire or construct buildings for school purposes;
+3. to rent or lease buildings, including the costs of building repair or improvement that are part of a lease agreement;
+4. to improve and repair school sites and buildings, and equip or reequip school buildings with permanent attached fixtures, including library media centers;
+5. for a surplus school building that is used substantially for a public nonschool purpose;
+6. to eliminate barriers or increase access to school buildings by individuals with a disability;
+7. to bring school buildings into compliance with the State Fire Code adopted according to chapter 299F;
+8. to remove asbestos from school buildings, encapsulate asbestos, or make asbestos-related repairs;
+9. to clean up and dispose of polychlorinated biphenyls found in school buildings;
+10. to clean up, remove, dispose of, and make repairs related to storing heating fuel or transportation fuels such as alcohol, gasoline, fuel oil, and special fuel, as defined in section 296A.01;
+11. for energy audits for school buildings and to modify buildings if the audit indicates the cost of the modification can be recovered within ten years;
+12. to improve buildings that are leased according to section 123B.51, subdivision 4;
+13. to pay special assessments levied against school property but not to pay assessments for service charges;
+14. to pay principal and interest on state loans for energy conservation according to section 216C.37 or loans made under the Douglas J. Johnson Economic Protection Trust Fund Act according to sections 298.292 to 298.298;
+15. to purchase or lease interactive telecommunications equipment;
+16. by board resolution, to transfer money into the debt redemption fund to: (i) pay the amounts needed to meet, when due, principal and interest payments on certain obligations issued according to chapter 475; or (ii) pay principal and interest on debt service loans or capital loans according to section 126C.70;
+17. to pay operating capital-related assessments of any entity formed under a cooperative agreement between two or more districts;
+18. to purchase or lease computers and related hardware, software, and annual licensing fees, copying machines, telecommunications equipment, and other noninstructional equipment;
+19. to purchase or lease assistive technology or equipment for instructional programs;
+20. to purchase textbooks as defined in section 123B.41, subdivision 2;
+21. to purchase new and replacement library media resources or technology;
+22. to lease or purchase vehicles;
+23. to purchase or lease telecommunications equipment, computers, and related equipment for integrated information management systems for:
+    + managing and reporting learner outcome information for all students under a results-oriented graduation rule;
+    + managing student assessment, services, and achievement information required for students with individualized education programs; and
+    + other classroom information management needs;
+24. to pay personnel costs directly related to the acquisition, operation, and maintenance of telecommunications systems, computers, related equipment, and network and applications software; and
+25. to pay the costs directly associated with closing a school facility, including moving and storage costs.
+
+<br>
+
+# Data
+
+Operating capital aid is an equalization funding mechanism. It's broken into a few different parts - revenue, levy, and aid. These are the main variables in the dataset that represent each part.
+
+* Operating capital revenue: ocexrev
+* Operating capital levy: cexlvy
+* Operating capital aid: cexaid
+
+
+
+*Operating capital revenue*
+
+The operating capital revenue provides revenue for adjusted pupil units as well as a bit extra for pupils that participate in programs outside of normal classroom programming (i.e. summer school).
+
+**ocexrev**
+
+To get the value of this column you calculate the following;
+
+cxfrev = awadm22 x (79 + (109 x ageidx22))
+
+* awadm22 = adjusted pupil units
+* ageidx22 = maintenance cost index
+
+Then, we need to add the extra $31 for each pupil unit that participates in programs outside of normal classroom hours (i.e. summer school).
+
+ocexrev = cxfrev + (31 x ywadm22)
+
+* ywadm22 = adusted pupil units for extended learning students
+
+*Operating capital levy*
+
+The operating capital levy calculates what amount the district raises from local property taxes which will help determine how much, if any, equalization is needed.
+
+**cexlvy**
+
+To get the value of this column you calculate the following;
+
+cexlvy = (ocexrev x cexrto)
+
+* ocexrev = operating capital revenue
+* cexrto = Less of 1 or (ANTC/APU) / $23,885  (this is the ratio mentioned in Subd. 13a.Operating capital levy.)
+
+*Operating Capital Aid*
+
+This is the final aid distributed to districts as the equalization measure. 
+
+**cexaid**
+
+To get the value of this column you calculate the following;
+
+cexaid = ocexrev - cexlvy
+
+* ocexrev = operating capital revenue
+* cexlvy = operating capital levy
+
+The table below provides all of these values. Out of the `r nrow(filter(original, group %in% c(1,4)))` total schools, `r nrow(filter(original, group %in% c(1,4) & cexaid > 0))` receive operating capital aid. That's nearly every school. 
+
+The 
+
+<br>
+
+```{r operating capital district}
+op.cap.dist <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, dist, type, group, ageidx22, awadm22, cxfrev, ywadm22, cxfrev, ocexrev, ocexrev, cexrto, cexlvy, cexaid)
+
+datatable(op.cap.dist, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:11)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(5, "", digits = 4) %>%
+  formatCurrency(6, "", digits = 0) %>%
+  formatCurrency(7, "$", digits = 2) %>%
+  formatCurrency(8, "", digits = 0) %>%
+  formatCurrency(9, "$", digits = 2) %>%
+  formatCurrency(10, "", digits = 4) %>%
+  formatCurrency(11:12, "$", digits = 2)
+
+```
+
+<br>
+
+Here is a list of the schools that did not receive any operating capital aid.
+
+```{r operating capital districts not receiving aid}
+op.cap.no.aid.districts <- original %>%
+  filter(group %in% c(1,4),
+         cexaid == 0) %>%
+  select(`District Name`, dist, type, group, ageidx22, awadm22, cxfrev, ywadm22, cxfrev, ocexrev, ocexrev, cexrto, cexlvy, cexaid)
+
+datatable(op.cap.no.aid.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:11)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(5, "", digits = 4) %>%
+  formatCurrency(6, "", digits = 0) %>%
+  formatCurrency(7, "$", digits = 2) %>%
+  formatCurrency(8, "", digits = 0) %>%
+  formatCurrency(9, "$", digits = 2) %>%
+  formatCurrency(10, "", digits = 4) %>%
+  formatCurrency(11:12, "$", digits = 2)
+
+```
+

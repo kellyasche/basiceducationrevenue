@@ -1,0 +1,565 @@
+---
+title: "Transportation Sparsity"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+
+Transportation sparsity revenue provides revenue to school districts that have a relatively low ratio of pupils to the square mile area of the school district.
+
+Prior to 1997, transportation funding was a direct appropriation. It included a “smoothing factor” that helped make sure each district received close to the cost of their transportation. In 1997, the legislature changed it to a formula amount of 4.66% per pupil. They also created a sparsity aid categorical to help districts that incurred a deficit with the change in funding.
+
+Approximately 80% still use general classroom dollars to cover their pupil transportation costs.
+
+In 2017 the legislature created a second categorical of sparsity aid for severely affected districts that covered 18.2% of the remaining district’s deficits.
+
+In 2019 a working group recommended the legislature cover 70% of the deficit - which the legislature has not passed.
+
+ The more remote a district, the greater the amount Transportation Sparsity Revenue they receive. Northern MN and Western MN receive the greatest revenue per pupil.
+
+The lower the enrollment is largely related to an increasing transportation sparsity revenue.
+
+Transportation revenue may be used for any general operating purpose. It’s computed as follows
+
+The formula is complex, but in general, the more swquare miles a district has per pupil, the greater the distrit’s sparsity revenue.
+
+In addition to this standard program, districts can receive an additional 18.2% of their un-reimbursed transportation costs from the previous year.
+
+* Transportation sparsity revenue = (Transportation Sparsity allowance x adjusted pupil units) + (182% of the districts’ unreimbursed costs of to and from school transportation
+
+The following steps are necessary to compute a district’s transportation sparsity allowance:
+
+* Transportation sparsity allowance = (Basic formula allowance x .141) x (sparsity index^26/100) x (Density index^13/100) - (Basic formula allowance x .0466)
+    + Density index = square mile area of the district / adjusted pupil units (but not less than .005 or more than .2
+    + Sparsity index = the greater of .2 or (square miles of the district) / adjust pupil units
+
+Below is an example of the calculation.
+
+Gopherville School District 
+
+* Adjusted Pupil Units (APU) = 1,000 
+* Number of Square Miles = 90
+* General Education Formula Allowance = $6,863 
+* District Sparsity Index = 0.20 
+* District Density Index = 0.09 
+
+Transportation Sparsity Revenue per Pupil Unit = [(Formula Allowance × 0.141) × (District Sparsity Index)^.26 × (District Density Index)^.13 – (Formula Allowance × 0.0466) 
+
+* = [($6,863 × 0.141) × 0.20^.26 × 0.09^.13] – ($6,863 × 0.0466) 
+* = [$968 × 0.658063 × 0.731226] – $320
+* = $466 – $320
+* = $146 
+
+Total Transportation Sparsity Revenue = Revenue per APU × APU
+
+* = $146 × 1,000 
+* = $146,000 
+
+<br>
+
+# State Legislation
+[Subd. 17.Transportation sparsity definitions.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.17) 
+
+The definitions in this subdivision apply to subdivision 18.
+
+a) "Sparsity index" for a district means the greater of .2 or the ratio of the square mile area of the district to the resident pupil units of the district.
+b) "Density index" for a district means the ratio of the square mile area of the district to the resident pupil units of the district. However, the density index for a district cannot be greater than .2 or less than .005.
+
+[§Subd. 18.Transportation sparsity revenue allowance.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.18a)
+
+a) A district's transportation sparsity allowance equals the greater of zero or the result of the following computation:
+    + Multiply the formula allowance according to subdivision 2, by .141.
+		+ Multiply the result in clause (i) by the district's sparsity index raised to the 26/100 power.
+		+ Multiply the result in clause (ii) by the district's density index raised to the 13/100 power.
+		+ Multiply the formula allowance according to subdivision 2, by .0466.
+		+ Subtract the result in clause (iv) from the result in clause (iii).
+b) Transportation sparsity revenue is equal to the transportation sparsity allowance times the adjusted pupil units.
+
+[Subd. 18a.Pupil transportation adjustment.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.18a) 
+
+a) An independent, common, or special school district's transportation sparsity revenue under subdivision 18 is increased by the greater of zero or 18.2 percent of the difference between:
+    + the lesser of the district's total cost for regular and excess pupil transportation under section 123B.92, subdivision 1, paragraph (b), including depreciation, for the previous fiscal year or 105 percent of the district's total cost for the second previous fiscal year; and
+    + the sum of:
+        + 4.66 percent of the district's basic revenue for the previous fiscal year;
+        + transportation sparsity revenue under subdivision 18 for the previous fiscal year;
+        + the district's charter school transportation adjustment for the previous fiscal year; and
+        + the district's reimbursement for transportation provided under section 123B.92, subdivision 1, paragraph (b), clause (1), item (vi).
+b) A charter school's pupil transportation adjustment equals the school district per pupil adjustment under paragraph (a).
+
+
+
+<br>
+
+# Data
+
+Transportation is split into two parts.
+
+1. Provide revenue for school districts that have large geographies with few students.
+2. Provide extra revenue for any losses in transportation in the previous school year.
+
+Primary variables;
+
+* Part 1: tsparrev1
+* Part 2: tsparrev2
+* Transportation sparsity revenue: tsparrev = tsparrev1 + tsparrev2
+
+**Part 1**
+
+*tsparrev1*
+
+tsparrev1 = tsparal x awadm22
+
+* tsparal = ((fa22ts x .141) * (trsindex^.26) * (trdindex^.13)) - (fa22ts x trapct))
+    + fa22ts = $6,728
+    + trsindex = sparsity index
+    + trdindex = density index
+    + trapct = .0466
+    + all values less than 0 converted to 0
+* awadm22 = adjusted pupil units
+    
+**Part 2**
+
+*tsparrev2*
+
+tsparrev2 = (transex - tottrarev) x .182
+
+* transex = minimum of transex21 or (transex20 * 1.05)
+  + transex is the lesser of the district’s total cost for regular and excess pupil transportation under section 123B.92, subdivision 1, paragraph (b), including depreciation, for the previous fiscal year or 105 percent of the district’s total cost for the second previous fiscal year;
+* tottrarev = the sum of:
+    + 4.66 percent of the district’s basic revenue for the previous fiscal year;
+    + transportation sparsity revenue under subdivision 18 for the previous fiscal year;
+    + the district’s charter school transportation adjustment for the previous fiscal year; and
+    + the district’s reimbursement for transportation provided under section 123B.92, subdivision 1, paragraph (b), clause (1), item (vi)
+
+All values less than 0 are then converted to 0.
+
+**Transportation sparcity revenue**
+
+*tsparrev*
+
+tsparrev = tsparrev1 + tsparrev2
+
+* tsparrev1 = Part 1 of formula
+* tsparrev2 = Part 2 of formula
+
+The table below provides all of this data. Out of the `r nrow(filter(original, group %in% c(1,4)))` there are `r nrow(filter(original, group %in% c(1,4) & tsparrev > 0))` schools that receive transportation sparsity revenue. A large majority of schools receive something from this component. 
+
+<br>
+
+```{r transportation sparsity districts}
+trans.spar.districts <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, group, fa22ts, trsindex, trdindex, trapct, tsparal, awadm22, tsparrev1, transex, tottrarev, tsparrev2, tsparrev)
+
+datatable(trans.spar.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:12)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3, "$", digits = 0) %>%
+  formatCurrency(4:6, "", digits = 4) %>%
+  formatCurrency(7, "$", digits = 2) %>%
+  formatCurrency(8, "", digits = 0) %>%
+  formatCurrency(9:13, "$", digits = 2)
+
+```
+
+<br>
+
+## Percent of schools that receive funding{.tabset}
+
+Let's check to see if there are any large differences in the percentages of schools that receive this funding by type of school as well as RUCA categories and regions.
+
+Let's begin with type of school. The table below shows that a significantly larger percentage of public schools receive transportation sparsity revenue compared to charter schools - 92% vs. 62%.
+
+<br>
+
+```{r transportation sparsity revenue received by group}
+trans.spar.received.districts <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(group, tsparrev) %>%
+  mutate(eligible = ifelse(tsparrev > 0, "Yes", "No")) %>%
+  group_by(group, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, Yes, No, pct.received)
+
+datatable(trans.spar.received.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+
+```
+
+<br>
+
+Okay, now let's check it out by RUCA categories and regions.
+
+As expected, the RUCA category breakdown shows that the largest percentage of schools receiving this funding is in our most rural areas. The percentage decreases as a county becomes more urban.
+
+In our planning regions, the largest percentage of schools receiving this funding is in the Northeast (98%). Southwest and Northwest also have more than 90% of their schools receiving this funding. 64% of school in the seven county metro receive funding.
+
+In the EDR breakdown, a 100% of schools received this funding in EDR 1, EDR 6E and EDR 8. The percentages are all pretty high for our most rural districts. 
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r transportation sparsity revenue received by ruca}
+trans.spar.received.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, tsparrev) %>%
+  mutate(eligible = ifelse(tsparrev > 0, "Yes", "No")) %>%
+  group_by(Dem_Desc, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(trans.spar.received.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r transportation sparsity revenue received by pr}
+trans.spar.received.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, tsparrev) %>%
+  mutate(eligible = ifelse(tsparrev > 0, "Yes", "No")) %>%
+  group_by(planning.region, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(trans.spar.received.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r transportation sparsity revenue received by edr}
+trans.spar.received.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  select(edr, tsparrev) %>%
+  mutate(eligible = ifelse(tsparrev > 0, "Yes", "No")) %>%
+  group_by(edr, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  complete(edr, eligible) %>%
+  mutate(n = ifelse(is.na(n), 0, n)) %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(trans.spar.received.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+
+```
+
+<br>
+
+## Transportation sparsity per APU{.tabset}
+
+Now lets see what the distribution looks like according to APU by school type, RUCA categories and regions.
+
+We will start with school type. The table below shows that public school districts receive a bit more transportation sparsity revenue per APU than charter schools - $135 vs. $101.
+
+<br>
+
+```{r transportation sparsity per apu group}
+trans.spar.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         tsparrev > 0) %>%
+  group_by(group) %>%
+  summarize(awadm22 = sum(awadm22),
+            tsparrev = sum(tsparrev)) %>%
+  ungroup() %>%
+  mutate(trans.spar.apu = tsparrev / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, awadm22, tsparrev, trans.spar.apu)
+
+datatable(trans.spar.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+
+```
+
+<br>
+
+Let's see what this looks like when broken down by RUCA categories and Regions.
+
+As expected, the more rural a county category is the more revenue per APU they receive from this component. Schools in entirely rural counties receive nearly $400 per APU while schools in entirely urban counties receive $62 per APU. 
+
+When broken down by planning region, our more northern schools receive the highest funding per APU. Northwest and Northeast received just over $230 per APU. Southwest followed closely with $200. Seven County metro only gets $55 per APU.
+
+The EDR breakdown shows a bit more nuanced. EDR 1 receives the highest with $348 while EDR 6W, located in Southwest, received the second highest at $303 per APU.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r transportation sparsity per apu ruca}
+trans.spar.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         tsparrev > 0) %>%
+  drop_na(Dem_Desc) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22),
+            tsparrev = sum(tsparrev)) %>%
+  ungroup() %>%
+  mutate(trans.spar.apu = tsparrev / awadm22) 
+
+datatable(trans.spar.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r transportation sparsity per apu pr}
+trans.spar.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         tsparrev > 0) %>%
+  drop_na(planning.region) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22),
+            tsparrev = sum(tsparrev)) %>%
+  ungroup() %>%
+  mutate(trans.spar.apu = tsparrev / awadm22) 
+
+datatable(trans.spar.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r transportation sparsity per apu edr}
+trans.spar.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         tsparrev > 0) %>%
+  drop_na(edr) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22),
+            tsparrev = sum(tsparrev)) %>%
+  ungroup() %>%
+  mutate(trans.spar.apu = tsparrev / awadm22) 
+
+datatable(trans.spar.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 0)
+
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+Next, let's see what the county map looks like. The map below shows pretty clearly that the highest transportation sparsity revenue per APU is in school districts along our most northern and wester border.
+
+<br>
+
+```{r transportation sparsity per apu county}
+trans.spar.apu.county <- original %>%
+  filter(group %in% c(1,4),
+         tsparrev > 0) %>%
+  drop_na(`County Name`) %>%
+  group_by(`County Name`) %>%
+  summarize(awadm22 = sum(awadm22),
+            tsparrev = sum(tsparrev)) %>%
+  ungroup() %>%
+  mutate(trans.spar.apu = tsparrev / awadm22,
+         trans.spar.apu.bins = cut(trans.spar.apu,
+                                   breaks = c(0, 100, 200, 300, 400, 1000000),
+                                   labels = c("$1-$100", "$100-$200", "$200-$300", "$300-$400", "More than $400"))) %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  right_join(mn_counties[,c(4,7)], by = "countyfp")
+
+trans.spar.apu.county.map <- ggplot(trans.spar.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = trans.spar.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nTransportation sparsity revenue: ", dollar(tsparrev), "\nTrasnportation sparsity per APU: ", dollar(trans.spar.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Transportation sparsity revenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = trans.spar.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+

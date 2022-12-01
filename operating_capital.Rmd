@@ -208,11 +208,11 @@ Operating capital aid is an equalization funding mechanism. It's broken into a f
 
 
 
-*Operating capital revenue*
+**Operating capital revenue**
 
 The operating capital revenue provides revenue for adjusted pupil units as well as a bit extra for pupils that participate in programs outside of normal classroom programming (i.e. summer school).
 
-**ocexrev**
+*ocexrev*
 
 To get the value of this column you calculate the following;
 
@@ -227,11 +227,11 @@ ocexrev = cxfrev + (31 x ywadm22)
 
 * ywadm22 = adusted pupil units for extended learning students
 
-*Operating capital levy*
+**Operating capital levy**
 
 The operating capital levy calculates what amount the district raises from local property taxes which will help determine how much, if any, equalization is needed.
 
-**cexlvy**
+*cexlvy*
 
 To get the value of this column you calculate the following;
 
@@ -240,11 +240,11 @@ cexlvy = (ocexrev x cexrto)
 * ocexrev = operating capital revenue
 * cexrto = Less of 1 or (ANTC/APU) / $23,885  (this is the ratio mentioned in Subd. 13a.Operating capital levy.)
 
-*Operating Capital Aid*
+**Operating Capital Aid**
 
 This is the final aid distributed to districts as the equalization measure. 
 
-**cexaid**
+*cexaid*
 
 To get the value of this column you calculate the following;
 
@@ -254,8 +254,6 @@ cexaid = ocexrev - cexlvy
 * cexlvy = operating capital levy
 
 The table below provides all of these values. Out of the `r nrow(filter(original, group %in% c(1,4)))` total schools, `r nrow(filter(original, group %in% c(1,4) & cexaid > 0))` receive operating capital aid. That's nearly every school. 
-
-The 
 
 <br>
 
@@ -300,3 +298,144 @@ datatable(op.cap.no.aid.districts, class = "cell-border stripe", filter = "top",
 
 ```
 
+<br>
+
+## Operating capital aid per APU{.tabset}
+
+Now let's check to see what kind of differences exist depending on the type of school, RUCA category, and regions.
+
+Let's begin with looking at differences in operating capital aid by type of school. The table below shows that charter schools receive a bit more operating capital aid per APU than public schools - $188 vs. $130.06.
+
+<br>
+
+```{r operating capital per apu group}
+op.cap.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         cexaid > 0) %>%
+  group_by(group) %>%
+  summarize(awadm22 = sum(awadm22),
+            cexaid = sum(cexaid)) %>%
+  ungroup() %>%
+  mutate(op.cap.aid.apu = cexaid / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, awadm22, cexaid, op.cap.aid.apu)
+
+datatable(op.cap.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$")
+
+```
+
+<br>
+
+Now let's check the RUCA categories and regions.
+
+The RUCA categories provide some interesting results. Entirely rural counties receive the least amount of operating capital aid per APU at $89.06. This is quite a bit less than the next lowest which is town/rural mix schools at $132.24. Interestingly, urban/town/rural mix schools receive, by far, the most with $146.65 per APU.
+
+The planning regions breakdown shows that Southwest receive the largest amount with $118 per APU followed closed by seven county metro with $130. The highest exists in Central with $153.
+
+The EDR breakdowns show that one of our most rural EDRs receives the lowest operating capital per APU which is EDR 6W with $96. This is followed by a bunch of southwest regions such as EDR 8, 9, and 4 which range from $109 to $128. The highest is EDR 7E with $158.36. 
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r operating capital per apu ruca}
+op.cap.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         cexaid > 0) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22),
+            cexaid = sum(cexaid)) %>%
+  ungroup() %>%
+  mutate(op.cap.aid.apu = cexaid / awadm22)
+
+datatable(op.cap.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$")
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r operating capital per apu pr}
+op.cap.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         cexaid > 0) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22),
+            cexaid = sum(cexaid)) %>%
+  ungroup() %>%
+  mutate(op.cap.aid.apu = cexaid / awadm22)
+
+datatable(op.cap.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$")
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r operating capital per apu edr}
+op.cap.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         cexaid > 0) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22),
+            cexaid = sum(cexaid)) %>%
+  ungroup() %>%
+  mutate(op.cap.aid.apu = cexaid / awadm22)
+
+datatable(op.cap.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$")
+
+```
+
+<br>
+
+# {.unnumbered .unlisted .toc-ignore .tabset}
+
+Let's check it out by county. The map below provides the operating capital aid per APU for all schools that received aid in each county. It clearly shows that schools along the 94 corridor receive the highest aid per APU. Some of the lowest aid per APU is in Southwest Minnesota. But why? 
+
+```{r operating capital per apu county}
+op.cap.apu.county <- original %>%
+  filter(group %in% c(1,4),
+         cexaid > 0) %>%
+  group_by(`County Name`) %>%
+  summarize(awadm22 = sum(awadm22),
+            cexaid = sum(cexaid)) %>%
+  ungroup() %>%
+  mutate(op.cap.aid.apu = cexaid / awadm22,
+         op.cap.aid.apu.bins = cut(op.cap.aid.apu,
+                                   breaks = c(40, 60, 100, 140, 180, 10000),
+                                   labels = c("$40-$60", "$60-$100", "$100-$140", "$140-$180", "More than $180"))) %>%
+  right_join(counties.regions[,c(1,2)], by = c("County Name" = "Name")) %>%
+  right_join(mn_counties[,c(4,7)], by = "countyfp")
+
+op.cap.apu.county.map <- ggplot(op.cap.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = op.cap.aid.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nOperating capital aid: ", dollar(cexaid), "\nOperating capital aid per APU: ", dollar(op.cap.aid.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Operating capital aid per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = op.cap.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```

@@ -9,10 +9,9 @@
 <meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
 
 
-<meta name="author" content="Kelly Asche" />
 
 
-<title>General Education Revenue - summary</title>
+<title>Equity</title>
 
 <script src="site_libs/header-attrs-2.18.1/header-attrs.js"></script>
 <script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
@@ -393,14 +392,119 @@ div.tocify {
 
 
 
-<h1 class="title toc-ignore">General Education Revenue - summary</h1>
-<h4 class="author">Kelly Asche</h4>
+<h1 class="title toc-ignore">Equity</h1>
 
 </div>
 
 
-<div id="section-section" class="section level1">
-<h1></h1>
+<p><br></p>
+<div id="section-description" class="section level1">
+<h1>Description</h1>
+<p>Equity revenue is designed to provide additional revenue to districts
+with lower amounts of referendum revenue. Calculations for this revenue
+is broken into two regions - the 7-county metro and greater Minnesota.
+The formula consists of three parts.</p>
+<ol style="list-style-type: decimal">
+<li>Basic equity revenue: equals the product of 125% x [$14 +($80 x
+district’s equity index)] x adjusted pupil units
+<ul>
+<li>Equity index = 1 - (basic formula allowance + local optional revenue
++ referendum revenue) / per pupil amount for the district at the 95th
+percentile in that region</li>
+<li>School districts of the first class (Minneapolis, St. Paul, and
+Duluth) don’t receive basic equity revenue</li>
+</ul></li>
+<li>Low referendum revenue: district has per pupil referendum revenue
+less than 10% of the statewide average receives an additional equity
+amount equal to the lesser of $100,000 or the difference between 10% of
+the statewide average referendum revenue and the district’s current
+amount of referendum revenue.</li>
+<li>Supplemental equity revenue: all school districts receive $50 per
+pupil unit.</li>
+</ol>
+<p>Equity aid and levy: A district’s total equity revenue is equalized
+on referendum market value using an equalizing factor of $510,000.</p>
+<p><br></p>
+</div>
+<div id="section-state-legislation" class="section level1">
+<h1>State Legislation</h1>
+<p><a
+href="https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.24">Subd.
+24.Equity revenue.</a></p>
+<ol style="list-style-type: lower-alpha">
+<li>A school district qualifies for equity revenue if:
+<ul>
+<li>the school district’s adjusted pupil unit amount of basic revenue,
+transition revenue, first tier local optional revenue, and referendum
+revenue is less than the value of the school district at or immediately
+above the 95th percentile of school districts in its equity region for
+those revenue categories; and</li>
+<li>the school district’s administrative offices are not located in a
+city of the first class on July 1, 1999.</li>
+</ul></li>
+<li>Equity revenue equals the product of
+<ul>
+<li>the district’s adjusted pupil units for that year; times</li>
+<li>the sum of (i) $14, plus (ii) $80, times the school district’s
+equity index computed under subdivision 27.</li>
+</ul></li>
+<li>A school district’s equity revenue is increased by the greater of
+zero or an amount equal to the district’s adjusted pupil units times the
+difference between ten percent of the statewide average amount of
+referendum revenue and first tier local optional revenue per adjusted
+pupil unit for that year and the sum of the district’s referendum
+revenue and first tier local optional revenue per adjusted pupil unit. A
+school district’s revenue under this paragraph must not exceed $100,000
+for that year.</li>
+<li>A school district’s equity revenue for a school district located in
+the metro equity region equals the amount computed in paragraphs (b) and
+(c) multiplied by 1.25.</li>
+<li>For fiscal year 2020 and later for a school district not included in
+paragraph (d), a district’s equity revenue equals the amount computed in
+paragraphs (b) and (c) multiplied by 1.25.</li>
+<li>A school district’s additional equity revenue equals $50 times its
+adjusted pupil units.</li>
+</ol>
+<p><a
+href="https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.27">Subd.
+27.District equity index.</a></p>
+<p>A district’s equity index equals the ratio of the sum of the district
+equity gap amount to the regional equity gap amount.</p>
+</div>
+<div id="section-data" class="section level1">
+<h1>Data</h1>
+<p>There are three parts to this component;</p>
+<ol style="list-style-type: decimal">
+<li>Equity revenue = eqrev</li>
+<li>Equity levy = eqlvy</li>
+<li>Equity aid = eqaid</li>
+</ol>
+<p>Equity aid = equity revenue - equity levy</p>
+<p><strong>Equity revenue</strong></p>
+<p><em>eqrev</em></p>
+<p>It’s important to know that when comparing with schools in the 95th
+percentile, it’s the comparison by region. There are two regions - seven
+county metro, and outside of seven county metro.</p>
+<p>First, we need to figure out whether a school qualifies for equity
+funding. The calculations for this eligibility is laid out in Subd.
+24a.</p>
+<p>The formula below calculates the first part which is the sum of basic
+revenue, referendum revenue, transition revenue, and local optional
+revenue tier 1.</p>
+<p>ajgened = bsrev + refrev22 + hhrev + loctier1rev</p>
+<ul>
+<li>bsrev = basic revenue</li>
+<li>refrev22 = referendum revenue</li>
+<li>hhrev = transition revenue</li>
+<li>loctier1rev = local optional revenue - first tier</li>
+</ul>
+<p>It’s then calculated at a per APU.</p>
+<p>ajgeppu = ifelse(awadm22 &gt; 0 &amp; group == 1, round((ajgened /
+awadm22) * 100) / 100, ajgeppu)</p>
+<p>Then, calculations are made to figure out the 95th and 5th percentile
+in each region. These calculations are then compared to ajgeppu and this
+get’s the equity index.</p>
+<p><br></p>
 </div>
 
 

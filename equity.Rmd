@@ -163,9 +163,31 @@ d) A school district's equity revenue for a school district located in the metro
 e) For fiscal year 2020 and later for a school district not included in paragraph (d), a district's equity revenue equals the amount computed in paragraphs (b) and (c) multiplied by 1.25.
 f) A school district's additional equity revenue equals $50 times its adjusted pupil units.
 
+[Subd. 25.Regional equity gap.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.25)
+
+The regional equity gap equals the difference between the value of the school district at or immediately above the fifth percentile of adjusted general revenue per adjusted pupil unit and the value of the school district at or immediately above the 95th percentile of adjusted general revenue per adjusted pupil unit.
+
+[Subd. 26.District equity gap.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.26)
+
+A district's equity gap equals the greater of zero or the difference between the district's adjusted general revenue and the value of the school district at or immediately above the regional 95th percentile of adjusted general revenue per adjusted pupil unit.
+
 [Subd. 27.District equity index.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.27) 
 
 A district's equity index equals the ratio of the sum of the district equity gap amount to the regional equity gap amount.
+
+[Subd. 28.Equity region.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.28)
+
+For the purposes of computing equity revenue under subdivision 24, a district with its administrative office located in Anoka, Carver, Dakota, Hennepin, Ramsey, Scott, or Washington County on January 1, 2012, is part of the metro equity region. All other districts are part of the rural equity region.
+
+[Subd. 29.Equity levy.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.29)
+
+To obtain equity revenue for fiscal year 2015 and later, a district may levy an amount not more than the product of its equity revenue for the fiscal year times the lesser of one or the ratio of its referendum market value per resident pupil unit to $510,000.
+
+[Subd. 30.Equity aid.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.30)
+
+A district's equity aid equals its equity revenue minus its equity levy times the ratio of the actual amount levied to the permitted levy.
+
+<br>
 
 # Data
 

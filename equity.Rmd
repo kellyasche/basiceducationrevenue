@@ -199,13 +199,9 @@ There are three parts to this component;
 
 Equity aid = equity revenue - equity levy
 
-**Equity revenue**
+One important piece to note about this formula is that comparisons are made by "region". In the formula, there are two regions - the seven county metro, and not the seven county metro, which is laid out in Subdivision 28 - equity region.
 
-*eqrev*
-
-It's important to know that when comparing with schools in the 95th percentile, it's the comparison by region. There are two regions - seven county metro, and outside of seven county metro.
-
-First, we need to figure out whether a school qualifies for equity funding. The calculations for this eligibility is laid out in Subd. 24a.
+**Revenue - Subdivision 24(a)**
 
 The formula below calculates the first part which is the sum of basic revenue, referendum revenue, transition revenue, and local optional revenue tier 1.
 
@@ -220,17 +216,335 @@ It's then calculated at a per APU.
 
 ajgeppu = ifelse(awadm22 > 0 & group == 1, round((ajgened / awadm22) * 100) / 100, ajgeppu)
 
-Then, calculations are made to figure out the 95th and 5th percentile in each region. These calculations are then compared to ajgeppu and this get's the equity index.
+**Revenue - Subdivision 24(b)**
 
+eqrev1 = round(awadm22 * (14 + (sldalo * eqindx)))
 
- 
- 
+* sldalo = 80
+* eqindx = District equity index.
+
+**Revenue - Subdivision 24(c)**
+
+eqrev2 = ifelse(refrev_p < ((refrev_ave + loc_ave) * 0.1), (((refrev_ave + loc_ave) * 0.1) - refrev_p) * awadm22, eqrev2)
+
+* refrev_p = sum of school districts referendum revenue and first tier local optional revenue per adjusted pupil unit
+* refrev_ave = state wide average amount of referendum revenue
+* loc_ave = state wide average amount of local optional referendum revenue
+* awadm22 = school districts adjusted pupil units
+
+**Revenue - Subdivision 24(d,e)**
+
+eqrev3 = ifelse(eqgroup.label == "metroeq", (eqrev1 + eqrev2) * 0.25, eqrev3),
+       eqrev3 = ifelse(eqgroup.label == "ruraleq", (eqrev1 + eqrev2) * 0.25, eqrev3))
+       
+* eqrev1 = equity revenue calculated in Subdivision 24(b)
+* eqrev2 = equity revenue calculated in Subdivision 24(c)
+
+**Revenue - Subdivision 24(f)**
+
+eqrev4 = round(awadm22 * eqblw95)
+
+* awadm22 = Adjusted pupil units
+* eqblw95 = $50
+
+**Revenue - total equity revenue**
+
+eqrev = eqrev1 + eqrev2 + eqrev3 + eqrev4
+
+**Levy - Subdivision 29**
+
+eqlvy = ifelse(wadm22 > 0 & group == 1, round(eqrev * ((rmkv19 / wadm22) / eq_eq_factor)), eqlvy)
+
+* wadm22 = resident pupil unit
+* eqrev = equity revenue
+* rmkv19 = referendum market value
+* eq_eq_factor = $510,000
+
+The levy value is then compared to the equity revenue and if the levy is greater than the revenue, the levy value is changed to the revenue value which will then cancel out in the next calculation.......
+
+**Aid - Subdivision 30**
+
+eqaid = eqrev - eqlvy
+
+The table below provides the equity revenue, levy and aid for each school district. It's worth noting that chart schools only qualify for equity revenue detailed in Subdivision 24(f) which is eqrev4. Since they don't have a levy, they always receive that amount in aid. 
+
+Of the `r nrow(filter(original, group %in% c(1,4)))` schools, `r nrow(filter(original, group %in% c(1,4) & eqaid > 0))` receive equity aid.
+
 
 <br>
-
 ```{r equity revenue district}
 equity.districts <- original %>%
   filter(group %in% c(1,4)) %>%
-  select(`District Name`, group, eqrev)
+  select(`District Name`, group, eqrev1, eqrev2, eqrev3, eqrev4, eqrev, eqlvy, eqaid)
+
+datatable(equity.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)))) %>%
+  formatCurrency(3:9, "$", digits = 0)
+
+```
+
+<br>
+
+## Equity aid eligibility{.tabset}
+
+Let's check to see if there are differences in the percentage of schools that receive equity by school type, RUCA category and regions. We will begin by comparing between public and charter schools.
+
+The table below provides the number and percentage of schools that received some form of equity aid. A significantly higher percentage of charter schools receive equity aid than school districts - 97% vs. 63%.
+
+<br>
+
+```{r equity aid eligibility group}
+eq.aid.elg.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(group, eqaid) %>%
+  mutate(eligibility = ifelse(eqaid > 0, "Yes", "No")) %>%
+  group_by(group, eligibility) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligibility, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, Yes, No, pct.received)
+
+datatable(eq.aid.elg.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+Now let's see what, if any, differences exist between RUCA categories and regions.
+
+The RUCA categories show a pattern in which if a county is more rural, it's more likely they receive equity aid compared to counties that are more urban.
+
+Interestingly, the Northeast planning region has the lowest percentage of schools that receive equity revenue - 63%. The highest is in Southwest with 88%.
+
+The EDR breakdown shows that 100% of the schools in EDR 6W and EDR 8 receive equity aid. Most of the EDRs in Southwest Minnesota have the highest percentages compared to northern Minnesota.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r equity aid eligibility ruca}
+eq.aid.elg.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, eqaid) %>%
+  mutate(eligibility = ifelse(eqaid > 0, "Yes", "No")) %>%
+  group_by(Dem_Desc, eligibility) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  complete(Dem_Desc, eligibility) %>%
+  mutate(n = ifelse(is.na(n), 0, n)) %>%
+  spread(eligibility, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(eq.aid.elg.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r equity aid eligibility pr}
+eq.aid.elg.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, eqaid) %>%
+  mutate(eligibility = ifelse(eqaid > 0, "Yes", "No")) %>%
+  group_by(planning.region, eligibility) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  complete(planning.region, eligibility) %>%
+  mutate(n = ifelse(is.na(n), 0, n)) %>%
+  spread(eligibility, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(eq.aid.elg.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r equity aid eligibility edr}
+eq.aid.elg.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  select(edr, eqaid) %>%
+  mutate(eligibility = ifelse(eqaid > 0, "Yes", "No")) %>%
+  group_by(edr, eligibility) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  complete(edr, eligibility) %>%
+  mutate(n = ifelse(is.na(n), 0, n)) %>%
+  spread(eligibility, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(eq.aid.elg.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4)
+
+```
+
+<br>
+
+## Equity aid per APU{.tabset}
+
+Next let's take a look at the distribution of equity aid using APU by type of school as well as RUCA categories and regions. 
+
+First, we will look at the equity aid per APU distributed by charter vs. public schools. Only schools that received equity aid are included in the calculations below. 
+
+The table below shows that charter schools receive nearly double equity aid per APU compared to public schools - $50 vs. $29.
+
+<br>
+
+```{r equity aid per APU group}
+eq.aid.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         eqaid > 0) %>%
+  group_by(group) %>%
+  summarize(eqaid = sum(eqaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(eq.aid.apu = eqaid / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, eqaid, awadm22, eq.aid.apu)
+
+datatable(eq.aid.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 2) %>%
+  formatCurrency(3, "", digits = 0) %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+
+Now let's see if there are any significant differences by RUCA categories and regions.
+
+The RUCA breakdown shows that the more rural a school is the higher the equity aid is per APU. Schools in entirely rural counties receive $49 per APU while entirely uban counties receive $30.
+
+When comparisons are made across planning regions, the highest aid per APU is provided to schools in Northeast Minnesota followed by Southwest - $44 and $40 respectively. The lowest are schools in Central Minnesota with $27 per APU.
+
+This follows in the EDR table - EDRs in the central part of the state have the lowest aid per APU - EDR 7w, EDR 4, EDR 7E all receive less than $30 per APU in equity aid. The highest aid per APU is found in our most rural EDRs - 6W, 2, 3, and 5.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r equity aid per APU ruca}
+eq.aid.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         eqaid > 0) %>%
+  group_by(Dem_Desc) %>%
+  summarize(eqaid = sum(eqaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(eq.aid.apu = eqaid / awadm22) 
+
+datatable(eq.aid.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 2) %>%
+  formatCurrency(3, "", digits = 0) %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r equity aid per APU pr}
+eq.aid.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         eqaid > 0) %>%
+  group_by(planning.region) %>%
+  summarize(eqaid = sum(eqaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(eq.aid.apu = eqaid / awadm22) 
+
+datatable(eq.aid.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 2) %>%
+  formatCurrency(3, "", digits = 0) %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r equity aid per APU edr}
+eq.aid.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         eqaid > 0) %>%
+  group_by(edr) %>%
+  summarize(eqaid = sum(eqaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(eq.aid.apu = eqaid / awadm22) 
+
+datatable(eq.aid.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 2) %>%
+  formatCurrency(3, "", digits = 0) %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+Let's take a look at this by county. The map below shows that schools receiving the highest equity aid per APU is found in Southwest Minnesota and in the central lakes region.
+
+<br>
+
+```{r equity aid per APU county}
+eq.aid.apu.county <- original %>%
+  filter(group %in% c(1,4),
+         eqaid > 0) %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(eqaid = sum(eqaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(eq.aid.apu = eqaid / awadm22,
+         eq.aid.apu.bins = cut(eq.aid.apu,
+                               breaks = c(0, 20, 30, 40, 50, 1000),
+                               labels = c("$1-$20", "$20-$30", "$30-$40", "$40-$50", "More than $50"))) %>%
+  right_join(mn_counties[,c(4,7)], by = "countyfp")
+
+eq.aid.apu.county.map <- ggplot(eq.aid.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = eq.aid.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nEquity aid: ", dollar(eqaid), "\nEquity aid per APU: ", dollar(eq.aid.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Equity aid per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = eq.aid.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
 
 ```

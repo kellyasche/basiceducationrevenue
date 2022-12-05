@@ -1,0 +1,302 @@
+---
+title: "Pension Adjustment"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+
+Started to compensate for some past legislative changes to the employer contribution rates to the public employee retirement systems. There are two parts
+
+1. a fixed amount based on past contribution rate changes, and
+2. beginning in 2019, an amount equal to the TRA employer contribution rate increases approved by the 2018 legislature.
+
+FY22 Pension Adjustment Revenue = 2015 Grandfather amount x (.0084 x FY21 covered teacher payroll)
+
+<br>
+
+# State Legislation
+[Subd. 37.Pension adjustment revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.37)
+
+a) A school district's pension adjustment revenue equals the sum of:
+    1. the greater of zero or the product of:
+        i. the difference between the district's adjustment under Minnesota Statutes 2012, section 127A.50, subdivision 1, for fiscal year 2014 per adjusted pupil unit and the state average adjustment under Minnesota Statutes 2012, section 127A.50, subdivision 1, for fiscal year 2014 per adjusted pupil unit; and
+        ii.  the district's adjusted pupil units for the fiscal year; and
+    2. the product of the salaries paid to district employees who were members of the Teachers Retirement Association and the St. Paul Teachers' Retirement Fund Association for the prior fiscal year and the district's pension adjustment rate for the fiscal year. The pension adjustment rate for Independent School District No. 625, St. Paul, equals 0.84 percent for fiscal year 2019, 1.67 percent for fiscal year 2020, 1.88 percent for fiscal year 2021, 2.09 percent for fiscal year 2022, 2.3 percent for fiscal year 2023, and 2.5 percent for fiscal year 2024 and later. The pension adjustment rate for all other districts equals 0.21 percent for fiscal year 2019, 0.42 percent for fiscal year 2020, 0.63 percent for fiscal year 2021, 0.84 percent for fiscal year 2022, 1.05 percent for fiscal year 2023, and 1.25 percent for fiscal year 2024 and later.
+b) For fiscal year 2025 and later, the state total pension adjustment revenue under paragraph (a), clause (2), must not exceed the amount calculated under paragraph (a), clause (2), for fiscal year 2024. The commissioner must prorate the pension adjustment revenue under paragraph (a), clause (2), so as not to exceed the maximum.
+c) Notwithstanding section 123A.26, subdivision 1, a cooperative unit, as defined in section 123A.24, subdivision 2, qualifies for pension adjustment revenue under paragraph (a), clause (2), as if it was a district, and the aid generated by the cooperative unit shall be paid to the cooperative unit.
+
+<br>
+
+# Data
+
+There are two parts to this formula that need to be added together.
+
+1. Subd 37(a1): penrev1 = penalo x awadm22)
+    + penalo = subd 37(a1i)
+    + awadm22 = adusted pupil units, subd37(a1ii)
+2. Subd 37(a2): penrev2 = penrate22 x pensal21
+    + penrate22 = .84%
+    + pensal21 = salaries paid to members of retirement associations in FY21
+    
+The total pension adjustment revenue provided to a school district is then penrev1 + penrev2.
+
+The table below provides all of these variables. Out of the `r nrow(filter(original, group %in% c(1,4)))` schools, `r nrow(filter(original, group %in% c(1,4) & penrev > 0))` receive pension adjustment revenue. That's nearly every school.
+
+<br>
+
+```{r pension adjustment districts}
+pens.adj.districts <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, group, penalo, awadm22, penrev1, penrate22, pensal21, penrev2, penrev)
+
+datatable(pens.adj.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)))) %>%
+  formatCurrency(3, "$", digits = 2) %>%
+  formatCurrency(4, "", digits = 0) %>%
+  formatCurrency(5, "$", digits = 0) %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7:9, "$", digits = 0)
+
+
+```
+
+<br>
+
+## Pension adjustment per APU{.tabset}
+
+Okay, now it's time to see if there are any differences in the distribution of this revenue. First, we will look at the pension adjustement per APU across charter vs. public schools. 
+
+The table below shows that public schools get a slightly higher amount of pension adustment revenue per APU compared to charter schools - $60 vs. $38.
+
+<br>
+
+```{r pension adjustment revenue per APU group}
+pens.adj.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         penrev > 0) %>%
+  group_by(group) %>%
+  summarize(awadm22 = sum(awadm22),
+            penrev = sum(penrev)) %>%
+  ungroup() %>%
+  mutate(penrev.apu = penrev / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, penrev, awadm22, penrev.apu)
+
+datatable(pens.adj.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 0) %>%
+  formatCurrency(3, "") %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+
+Next, let's take a look at differences across RUCA categories and regions. All of the tables below show that there is a very similar pension adjustment revenue per APU value across all of Minnesota. It ranges from $40 to $67.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r pension adjustment revenue per APU ruca}
+pens.adj.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         penrev > 0) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = sum(awadm22),
+            penrev = sum(penrev)) %>%
+  ungroup() %>%
+  mutate(penrev.apu = penrev / awadm22) 
+
+datatable(pens.adj.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 0) %>%
+  formatCurrency(3, "") %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r pension adjustment revenue per APU pr}
+pens.adj.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         penrev > 0) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = sum(awadm22),
+            penrev = sum(penrev)) %>%
+  ungroup() %>%
+  mutate(penrev.apu = penrev / awadm22) 
+
+datatable(pens.adj.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 0) %>%
+  formatCurrency(3, "") %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r pension adjustment revenue per APU edr}
+pens.adj.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         penrev > 0) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = sum(awadm22),
+            penrev = sum(penrev)) %>%
+  ungroup() %>%
+  mutate(penrev.apu = penrev / awadm22) 
+
+datatable(pens.adj.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "$", digits = 0) %>%
+  formatCurrency(3, "") %>%
+  formatCurrency(4, "$", digits = 0)
+
+```
+
+<br>
+

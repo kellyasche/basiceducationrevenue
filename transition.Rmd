@@ -1,0 +1,481 @@
+---
+title: "Transition"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.edr <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+```
+
+<br>
+
+# Description
+
+Transition revenue provides school districts with a partial grandfather or hold-harmless due to the 2003 Legislature’s changes to general education revenue. Transition revenue guarantees a school district the lesser of
+
+* it’s fiscal year 2003 general education revenue per pupil, or
+* the amount of revenue per pupil that the district would have received during the 2004 fiscal year under the old definitions of general education revenue.
+
+The difference between the actual fiscal year 2004 revenue and the guaranteed amount is the new transition revenue.
+
+This revenue was provided entirely in state aid for fiscal year 2004 and is an equalized aid and levy for later years. Transition revenue is provided through an equalized aid and levy based on a referendum market value equalizing factor of $510,000.
+
+<br>
+
+# State Legislation
+[Subd. 31.Transition revenue.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.31)
+ 
+a) A district's transition allowance equals the sum of the transition revenue the district would have received for fiscal year 2015 under Minnesota Statutes 2012, section 126C.10, subdivisions 31, 31a, and 31c, and the greater of zero or the difference between:
+    1. the sum of:
+        i. the general education revenue the district would have received for fiscal year 2015 according to Minnesota Statutes 2012, section 126C.10;
+        ii. the integration revenue the district received for fiscal year 2013 under Minnesota Statutes 2012, section 124D.86;
+        iii. the pension adjustment the district would have received for fiscal year 2015 under Minnesota Statutes 2012, section 127A.50;
+        iv. the special education aid the district would have received for fiscal year 2015 under Minnesota Statutes 2012, section 125A.76; and
+        v. the special education excess cost aid the district would have received for fiscal year 2015 under Minnesota Statutes 2012, section 125A.79; and
+    2. the sum of the district's:
+        i. general education revenue for fiscal year 2015 excluding transition revenue under this section;
+        ii. achievement and integration revenue for fiscal year 2015 under section 124D.862;
+        iii. special education aid for fiscal year 2015 under section 125A.76; and
+        iv. alternative teacher compensation revenue for fiscal year 2015 under section 122A.415,
+		divided by the number of adjusted pupil units for fiscal year 2015.
+b) A district's transition revenue for fiscal year 2015 and later equals the product of the district's transition allowance times the district's adjusted pupil units.
+
+[Subd. 32.Transition levy.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.32)
+ 
+To obtain transition revenue for fiscal year 2015 and later, a district may levy an amount not more than the product of its transition revenue for the fiscal year times the lesser of one or the ratio of its referendum market value per resident pupil unit to $510,000.
+
+[Subd. 33.Transition aid.](https://www.revisor.mn.gov/statutes/cite/126C.10#stat.126C.10.33)
+ 
+(a) For fiscal year 2004, a district's transition aid equals its transition revenue.
+(b) For fiscal year 2005 and later, a district's transition aid equals its transition revenue minus its transition levy times the ratio of the actual amount levied to the permitted levy.
+
+<br>
+
+# Data
+
+There are three parts to this formula.
+
+1. Revenue: hhrev
+2. Levy: hhlvy
+3. Aid: hhaid
+
+**Revenue - hhrev**
+
+hhrev = hhalo x awadm22
+
+* hhalo = school districts transition allowance
+* awadm22 = school districts adjusted pupil units
+
+**Levy - hhlvy**
+
+hhlvy = hhrev x ((rmkv19 / wadm22) / hh_eq_factor)
+
+* hhrev = school district's transition revenue
+* rmkv19 = school district's referendum market value
+* wadm22 = school district's resident pupil units
+* hh_eq_factor = $510,000
+
+Once this is calculated, a comparison is made to see which is lesser, revenue or levy amounts - the hhlvy value is changed to whichever is the smaller value. Therefore, if the revenue is smaller than the levy, the aid (calculated next) would be $0.
+
+**Aid - hhaid**
+
+hhaid = hhrev - hhlvy
+
+The table below provides all of this information. Out of the `r nrow(filter(original, group %in% c(1,4)))` schools, `r nrow(filter(original, group %in% c(1,4) & hhaid > 0))` received transition aid.
+
+<br>
+
+```{r transition aid districts}
+transition.aid.districts <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, group, hhalo, awadm22, hhrev, wadm22, hh_eq_factor, hhlvy, hhaid)
+
+datatable(transition.aid.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)))) %>%
+  formatCurrency(3, "$", digits = 2) %>%
+  formatCurrency(4, "", digits = 0) %>%
+  formatCurrency(5, "$", digits = 2) %>%
+  formatCurrency(6, "", digits = 0) %>%
+  formatCurrency(7:9, "$", digits = 2)
+
+```
+
+<br>
+
+## Transition aid eligibility{.tabset}
+
+Let's check to see if there are any major differences in schools that receive transition aid by school type, RUCA category and regions. We will begin with looking at the differences between charter schools and public schools.
+
+The table below shows that a slightly higher percentage of public schools receive transition aid compared to charter schools - 38% vs. 19%.
+
+<br>
+
+```{r transition aid eligibility by group}
+transition.aid.elg.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(group, hhaid) %>%
+  mutate(eligible = ifelse(hhaid > 0, "Yes", "No")) %>%
+  group_by(group, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, Yes, No, pct.received)
+
+datatable(transition.aid.elg.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4) 
+
+```
+
+<br>
+
+Next, let's see if there are any differences by RUCA category and regions.
+
+The RUCA table shows that a similar percentage of schools in entirely rural, town/rural mix and urban/town/rural mix county groups receive transition aid (38%, 41% and 42%, respectively). Only 17% of entirely urban schools receive this aid.
+
+Planning regions Northeast, Southeast, Northwest and Southwest all have very similar percentage of schools receiving this aid with a range of 39% to 44%. 
+
+The EDR is pretty similar. Howerver, it's a bit intersting that EDR 6W has the second lowest percentage with 25% of schools receiving this aid.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r transition aid eligibility by ruca}
+transition.aid.elg.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, hhaid) %>%
+  mutate(eligible = ifelse(hhaid > 0, "Yes", "No")) %>%
+  group_by(Dem_Desc, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(transition.aid.elg.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4) 
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r transition aid eligibility by pr}
+transition.aid.elg.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  select(planning.region, hhaid) %>%
+  mutate(eligible = ifelse(hhaid > 0, "Yes", "No")) %>%
+  group_by(planning.region, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(transition.aid.elg.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4) 
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r transition aid eligibility by edr}
+transition.aid.elg.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  select(edr, hhaid) %>%
+  mutate(eligible = ifelse(hhaid > 0, "Yes", "No")) %>%
+  group_by(edr, eligible) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  spread(eligible, n) %>%
+  mutate(pct.received = Yes / (Yes + No)) 
+
+datatable(transition.aid.elg.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatPercentage(4) 
+
+```
+
+<br>
+
+## Transition aid per APU{.tabset}
+
+Next let's look at the amount of aid provided per APU and see if there are any differences across the type of schools as well as RUCA categories and regions.
+
+First, we will check the differences across school type. The table below shows that a significantly higher amount of transition aid per APU is received by charter schools vs. public schools - $119 vs. $7.
+
+<br>
+
+```{r transition aid per apu group}
+transition.aid.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         hhaid > 0) %>%
+  group_by(group) %>%
+  summarize(hhaid = sum(hhaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(hhaid.apu = hhaid / awadm22) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, awadm22, hhaid, hhaid.apu)
+
+datatable(transition.aid.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+  
+```
+
+<br>
+
+Next let's check to see what differences exist across RUCA categories and regions.
+
+The RUCA category table shows that schools in entirely urban counties receive significantly higher aid per APU compared to other RUCA categories - $29 per APU compared to $16 for entirely rural and town/rural mix schools and $4 for urban/town/rural mix schools.
+
+In the planning regions, the seven county metro receives the highest with $36 transition aid per APU followed by Northwest with $21 per APU. The other regions receive far less, ranging from $3 in Central to $6 in Southeast.
+
+When broken down by EDR, EDR 2 actually receives the higher amount of aid per APU with $44, followed by Seven county metro with $36. Some of the lowest aid per APU is across CEntral Minnesota. 
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r transition aid per apu ruca}
+transition.aid.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         hhaid > 0) %>%
+  group_by(Dem_Desc) %>%
+  summarize(hhaid = sum(hhaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(hhaid.apu = hhaid / awadm22) 
+
+datatable(transition.aid.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+  
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r transition aid per apu pr}
+transition.aid.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         hhaid > 0) %>%
+  group_by(planning.region) %>%
+  summarize(hhaid = sum(hhaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(hhaid.apu = hhaid / awadm22) 
+
+datatable(transition.aid.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+  
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r transition aid per apu edr}
+transition.aid.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         hhaid > 0) %>%
+  group_by(edr) %>%
+  summarize(hhaid = sum(hhaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(hhaid.apu = hhaid / awadm22) 
+
+datatable(transition.aid.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)))) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:4, "$", digits = 2)
+  
+```
+
+<br>
+
+# {.unnumbered .unlisted .toc-ignore .tabset}
+
+Let's take a look at aid per APU at the county level. The map below shows pretty clearly that schools in the north central lakes region receive the highest amount of transition aid per APU in the state as well as Hennepin and Ramsay.
+
+<br>
+
+```{r transition aid per apu county}
+transition.aid.apu.county <- original %>%
+  filter(group %in% c(1,4),
+         hhaid > 0) %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(hhaid = sum(hhaid),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(hhaid.apu = hhaid / awadm22,
+         hhaid.apu.bins = cut(hhaid.apu,
+                              breaks = c(0, 5, 10, 15, 20, 1000000),
+                              labels = c("$1-$5", "$5-$10", "$10-$15", "$15-$20", "More than $20"))) %>%
+  right_join(mn_counties[,c(4,7)], by = "countyfp")
+
+transition.aid.apu.county.map <- ggplot(transition.aid.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = hhaid.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nAPU: ", comma(awadm22, accuracy = 1), "\nTransition aid: ", dollar(hhaid), "\nTransition aid per APU: ", dollar(hhaid.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Transition aid per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = transition.aid.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```

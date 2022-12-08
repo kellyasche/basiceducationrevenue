@@ -137,6 +137,10 @@ var.codes <- read_xlsx("Data/Formula/primary variable codes.xlsx")
 
 <br>
 
+Something here.
+
+# Proportion of total revenue by category{.tabset}
+
 First let's check to see what categories contribute the most revenue to school districts. Are there categories that provide more than another depending on the type of school, RUCA categories or regions?
 
 First, let's lump all schools together and see what which categories provide the most. As the chart below shows, the basic education revenue provides BY FAR the most to school districts in Minnesota. Very far behind is compensatory which provides 6.4% of the total revenue given to schools.
@@ -184,7 +188,7 @@ girafe(ggobj = cat.all.schools.plot, width_svg = 10, height_svg = 10) %>%
 
 <br>
 
-Next, let's see if there are any big differences between public and charter schools.
+Next, let's see if there are any big differences between public and charter schools. The chart below provides the proportion of revenue from each category by type of schools. Charter schools receive a significant larger amount of their revenue from compensatory, english learners, small schools revenue.
 
 <br>
 
@@ -234,3 +238,166 @@ girafe(ggobj = cat.group.plot, width_svg = 10, height_svg = 10) %>%
 
 
 ```
+
+<br>
+
+Okay, let's see what kind of differences there are by RUCA categories and regions.
+
+The RUCA tables show that as a county group becomes more urban, the percentage of revenue coming from the basic education component decreases. This is because rural areas get more revenue from some of the other components. The components that seem to benefit rural schools more than urban are;
+
+* Declining enrollment
+* Equity aid
+* Local optional aid
+* Sparsity
+* Transportation sparsity
+* Small schools
+
+There are a few that benefit urban schools more;
+
+* Operating capital aid
+* English learners
+* Pensions adjustment
+* Extended time
+
+It's worth mentioning that compensatory revenue is a significant percentage across all RUCA categories. The highest is in the entirely urban areas, but is quite similar to our entirely rural areas.
+
+When looking at things by geography, there are a few patterns. We will go through each category.
+
+* Basic revenue: the highest percentages are in Central, seven county metro, and Southeast. Most of the EDRs in these regions have well over 80% of their total revenue from this category.
+* Compensatory: The highest compensatory percentages exist in EDR 2 - Headwaters, the twin cities, and the north central lakes regions. 
+* Declining enrollment: the highest percentage is in Southeast regions.
+* English learners: the highest percentages are in Southwest region as well as seven county metro.
+* Equity aid: higherst percentages in Northwest and West Central regions.
+* Extended time: highest percentages exist in central Minnesota and seven county metro.
+* Gifted and talented: even across all of Minnesota.
+* Local optional aid: Local optional doesn't have a pattern that I can see.
+
+
+<br>
+
+## RUCA
+
+<br>
+
+```{r categories by ruca}
+cat.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(Dem_Desc) %>%
+  group_by(Dem_Desc) %>%
+  summarize(bsrev = sum(bsrev),
+            exdayr = sum(exdayr),
+            gtrev = sum(gtrev), 
+            smlrev = sum(smlrev), 
+            decrev = sum(decrev), 
+            locaid = sum(locaid), 
+            afdc22 = sum(afdc22), 
+            totlep = sum(totlep), 
+            totspar = sum(totspar), 
+            cexaid = sum(cexaid, na.rm = TRUE), 
+            tsparrev = sum(tsparrev), 
+            eqaid = sum(eqaid), 
+            hhaid = sum(hhaid), 
+            penrev = sum(penrev)) %>%
+  gather(key = "categories", value = "revenue", 2:15) %>%
+  group_by(Dem_Desc) %>%
+  mutate(pct.revenue = revenue / sum(revenue)) %>%
+  ungroup() %>%
+  mutate(data_id = as.character(seq(n()))) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(Dem_Desc, Category, pct.revenue) %>%
+  spread(Dem_Desc, pct.revenue)
+
+datatable(cat.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)))) %>%
+  formatPercentage(2:5, digits = 1)
+
+
+```
+
+
+
+<br>
+
+## Planning Region
+
+<br>
+
+```{r categories by pr}
+cat.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(planning.region) %>%
+  group_by(planning.region) %>%
+  summarize(bsrev = sum(bsrev),
+            exdayr = sum(exdayr),
+            gtrev = sum(gtrev), 
+            smlrev = sum(smlrev), 
+            decrev = sum(decrev), 
+            locaid = sum(locaid), 
+            afdc22 = sum(afdc22), 
+            totlep = sum(totlep), 
+            totspar = sum(totspar), 
+            cexaid = sum(cexaid, na.rm = TRUE), 
+            tsparrev = sum(tsparrev), 
+            eqaid = sum(eqaid), 
+            hhaid = sum(hhaid), 
+            penrev = sum(penrev)) %>%
+  gather(key = "categories", value = "revenue", 2:15) %>%
+  group_by(planning.region) %>%
+  mutate(pct.revenue = revenue / sum(revenue)) %>%
+  ungroup() %>%
+  mutate(data_id = as.character(seq(n()))) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(planning.region, Category, pct.revenue) %>%
+  spread(planning.region, pct.revenue)
+
+datatable(cat.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
+                         scrollX = TRUE)) %>%
+  formatPercentage(2:7, digits = 1)
+
+
+```
+
+<br>
+
+## EDR
+
+<br>
+
+```{r categories by edr}
+cat.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  drop_na(edr) %>%
+  group_by(edr) %>%
+  summarize(bsrev = sum(bsrev),
+            exdayr = sum(exdayr),
+            gtrev = sum(gtrev), 
+            smlrev = sum(smlrev), 
+            decrev = sum(decrev), 
+            locaid = sum(locaid), 
+            afdc22 = sum(afdc22), 
+            totlep = sum(totlep), 
+            totspar = sum(totspar), 
+            cexaid = sum(cexaid, na.rm = TRUE), 
+            tsparrev = sum(tsparrev), 
+            eqaid = sum(eqaid), 
+            hhaid = sum(hhaid), 
+            penrev = sum(penrev)) %>%
+  gather(key = "categories", value = "revenue", 2:15) %>%
+  group_by(edr) %>%
+  mutate(pct.revenue = revenue / sum(revenue)) %>%
+  ungroup() %>%
+  mutate(data_id = as.character(seq(n()))) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(edr, Category, pct.revenue) %>%
+  spread(edr, pct.revenue)
+
+datatable(cat.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
+                         scrollX = TRUE)) %>%
+  formatPercentage(2:14, digits = 1)
+
+
+```
+
+<br>

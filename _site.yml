@@ -38,8 +38,8 @@ navbar:
           href: pension_adjustment.html
         - text: "Options Adjustment"
           href: options_adjustment.html
-    - text: "Scenarios"
-      href: scenarios.html
+    - text: "All categories"
+      href: all_categories.html
 output:
   html_document:
     css: "styles.css"

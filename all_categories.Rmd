@@ -1,5 +1,5 @@
 ---
-title: "Scenarios"
+title: "All categories"
 output:
   html_document:
     toc: true
@@ -139,7 +139,9 @@ categories <- c("bsrev", "exdayr", "gtrev", "smlrev", "decrev", "locaid", "afdc2
 
 <br>
 
-Something here.
+Below is an analysis of all the categories to determine which of them makes up the largest proportions of total basic education revenue for each school district, as well as schools within school types (charter vs. public), RUCA categories and regions.
+
+<br>
 
 # Proportion of total revenue by category{.tabset}
 
@@ -406,30 +408,46 @@ datatable(cat.edr, class = "cell-border stripe", filter = "top", rownames = FALS
 
 # Categories per APU{.tabset}
 
-The table below provides each of the revenue streams per APU for each school district.
+The table below provides each of the revenue streams per APU for each school district as well as the total revenue per APU. If sorting by which schools receive the highest total revenue per APU, the top ten is mostly composed of small rural school districts along with a few charter schools.
+
+Of the categories that seem to drive the higher total revenue per APU are compensatory, sparsity, small schools, and transportation sparsity.
 
 <br>
 
 ```{r categories per apu districts}
+cat.total.rev.apu.districts <- original %>%
+  filter(group %in% c(1,4),
+         `District Name` != "Minnesota State Academies") %>%
+  select(`District Name`, group, awadm22, all_of(categories)) %>%
+  gather(key = "categories", value = "value", 3:17) %>%
+  group_by(`District Name`, group) %>%
+  summarize(awadm22 = value[categories == "awadm22"],
+            revenue = sum(value[categories != "awadm22"])) %>%
+  ungroup() %>%
+  mutate(rev.awadm22 = revenue / awadm22)
+  
 cat.apu.districts <- original %>%
   filter(group %in% c(1,4),
          `District Name` != "Minnesota State Academies") %>%
   select(`District Name`, group, awadm22, all_of(categories)) %>%
   gather(key = "categories", value = "revenue", 4:17) %>%
   mutate(revenue = ifelse(is.na(revenue), 0, revenue),
-         revenue.apu = revenue / awadm22) %>%
-  select(`District Name`, categories, revenue.apu) %>%
-  group_by(`District Name`) %>%
-  mutate(id = seq()) %>%
-  ungroup() %>%
+         revenue.apu = round(revenue / awadm22)) %>%
   left_join(var.codes, by = c("categories" = "Code")) %>%
-  select(`District Name`, Category, revenue.apu, id) %>%
-  spread(Category, revenue.apu) 
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(`District Name`, Definition, Category, revenue.apu) %>%
+  spread(Category, revenue.apu) %>%
+  left_join(cat.total.rev.apu.districts, by = c("District Name")) %>%
+  select(`District Name`, Definition, awadm22, revenue, rev.awadm22, 3:16) %>%
+  rename(APU = awadm22,
+         `Total revenue` = revenue,
+         `Total revenue per APU` = rev.awadm22)
 
 datatable(cat.apu.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:14)),
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:18)),
                          scrollX = TRUE)) %>%
-  formatCurrency(2:15, "$", digits = 0)
+  formatCurrency(3, "", digits = 0) %>%
+  formatCurrency(4:19, "$", digits = 0)
 ```
 
 <br>
@@ -445,29 +463,45 @@ Some of the categories with significant differences are compensatory, english le
 <br>
 
 ```{r categories per apu group}
+cat.total.rev.apu.group <- original %>%
+  filter(group %in% c(1,4),
+         `District Name` != "Minnesota State Academies") %>%
+  select(group, awadm22, all_of(categories)) %>%
+  gather(key = "categories", value = "value", 2:16) %>%
+  group_by(group) %>%
+  summarize(awadm22 = round(sum(value[categories == "awadm22"], na.rm = TRUE)),
+            revenue = round(sum(value[categories != "awadm22"], na.rm = TRUE))) %>%
+  ungroup() %>%
+  mutate(rev.awadm22 = round(revenue / awadm22)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, awadm22, revenue, rev.awadm22)
+  
 cat.apu.group <- original %>%
   filter(group %in% c(1,4),
          `District Name` != "Minnesota State Academies") %>%
   select(group, awadm22, all_of(categories)) %>%
   gather(key = "categories", value = "revenue", 2:16) %>%
   group_by(group, categories) %>%
-  summarize(revenue = sum(revenue, na.rm = TRUE)) %>%
+  summarize(value = sum(revenue, na.rm = TRUE)) %>%
   ungroup() %>%
   group_by(group) %>%
-  mutate(revenue.awadm22 = round(revenue / revenue[categories == "awadm22"])) %>%
+  mutate(rev.apu = round(value / value[categories=="awadm22"])) %>%
   ungroup() %>%
-  select(group, categories, revenue.awadm22) %>%
   filter(categories != "awadm22") %>%
   left_join(var.codes, by = c("categories" = "Code")) %>%
-  select(group, revenue.awadm22, Category) %>%
-  spread(Category, revenue.awadm22) %>%
   left_join(group.codes, by = c("group" = "Code")) %>%
-  select(-group) %>%
-  select(Definition, 1:15) 
+  select(Definition, Category, rev.apu) %>%
+  spread(Category, rev.apu) %>%
+  left_join(cat.total.rev.apu.group, by = c("Definition")) %>%
+  select(Definition, awadm22, revenue, rev.awadm22, 2:15) %>%
+  rename(APU = awadm22,
+         `Total revenue` = revenue,
+         `Total revenue per APU` = rev.awadm22)
 
 datatable(cat.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:13)),
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:17)),
                          scrollX = TRUE)) %>%
+  formatStyle(columns = "Total revenue per APU", backgroundColor = styleEqual(max(cat.apu.group$`Total revenue per APU`), "#a6bddb")) %>%
   formatStyle(columns = "Compensatory", backgroundColor = styleEqual(max(cat.apu.group$Compensatory), "#a6bddb")) %>%
   formatStyle(columns = "English learners", backgroundColor = styleEqual(max(cat.apu.group$`English learners`), "#a6bddb")) %>%
   formatStyle(columns = "Declining enrollment", backgroundColor = styleEqual(max(cat.apu.group$`Declining enrollment`), "#a6bddb")) %>%
@@ -479,14 +513,26 @@ datatable(cat.apu.group, class = "cell-border stripe", filter = "top", rownames 
   formatStyle(columns = "Small schools", backgroundColor = styleEqual(max(cat.apu.group$`Small schools`), "#a6bddb")) %>%
   formatStyle(columns = "Sparsity", backgroundColor = styleEqual(max(cat.apu.group$Sparsity), "#a6bddb")) %>%
   formatStyle(columns = "Transition aid", backgroundColor = styleEqual(max(cat.apu.group$`Transition aid`), "#a6bddb")) %>%
-  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.group$`Transportation sparsity`), "#a6bddb"))
-
-
+  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.group$`Transportation sparsity`), "#a6bddb")) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:18, "$", digits = 0)
 ```
 
 <br>
 
 Next, let's look at differences across RUCA categories and regions.
+
+The RUCA table below shows that schools in entirely rural counties receive the most revenue per APU ($8,903) compared to the other RUCA categories. Entirely urban receive the least amount with $7,753.
+
+The categories making the biggest difference for rural schools are equity aid, local optional aid, small schools, sparsity, and transportation sparsity. 
+
+The planning regions table shows that our three most rural regions - Northeast, Northwest, and Southwest, have very similar total revenue per APU - all have just a little over $8,000 per APU. The lowest is in the seven county metro and Central regions. There higher revenue per APU is driven by the same categories as rural county groups - sparsity, equity, local optional and small schools.
+
+The top 5 EDRs all represent their regions order as well - EDR 2, EDR 1, EDR 6W and EDR 3 are all in the Northwest, Northeast, and Southwest regions. EDR 2 has a high revenue per APU due to the crazy high compensatory revenue per APU. 
+
+Interestingly, the lowest are comprised of somewhat rural areas - EDR 7W, EDR 7E, EDR 9, and EDR 4. These lower revenues per APU are driven by lower revenues from sparsity, compensatory, and equity aid.
+
+
 
 <br>
 
@@ -495,26 +541,43 @@ Next, let's look at differences across RUCA categories and regions.
 <br>
 
 ```{r categories per apu ruca}
-cat.apu.ruca <- original %>%
+cat.total.rev.apu.ruca <- original %>%
   filter(group %in% c(1,4),
          `District Name` != "Minnesota State Academies") %>%
   select(Dem_Desc, awadm22, all_of(categories)) %>%
+  gather(key = "categories", value = "value", 2:16) %>%
+  group_by(Dem_Desc) %>%
+  summarize(awadm22 = round(sum(value[categories == "awadm22"], na.rm = TRUE)),
+            revenue = round(sum(value[categories != "awadm22"], na.rm = TRUE))) %>%
+  ungroup() %>%
+  mutate(rev.awadm22 = round(revenue / awadm22))
+  
+cat.apu.ruca <- original %>%
+  filter(group %in% c(1,4),
+         `District Name` != "Minnesota State Academies") %>%
+  drop_na(Dem_Desc) %>%
+  select(Dem_Desc, awadm22, all_of(categories)) %>%
   gather(key = "categories", value = "revenue", 2:16) %>%
   group_by(Dem_Desc, categories) %>%
-  summarize(revenue = sum(revenue, na.rm = TRUE)) %>%
+  summarize(value = sum(revenue, na.rm = TRUE)) %>%
   ungroup() %>%
   group_by(Dem_Desc) %>%
-  mutate(revenue.awadm22 = round(revenue / revenue[categories == "awadm22"])) %>%
+  mutate(rev.apu = round(value / value[categories=="awadm22"])) %>%
   ungroup() %>%
-  select(Dem_Desc, categories, revenue.awadm22) %>%
   filter(categories != "awadm22") %>%
   left_join(var.codes, by = c("categories" = "Code")) %>%
-  select(Dem_Desc, revenue.awadm22, Category) %>%
-  spread(Category, revenue.awadm22) 
+  select(Dem_Desc, Category, rev.apu) %>%
+  spread(Category, rev.apu) %>%
+  left_join(cat.total.rev.apu.ruca, by = "Dem_Desc") %>%
+  select(Dem_Desc, awadm22, revenue, rev.awadm22, 2:15) %>%
+  rename(APU = awadm22,
+         `Total revenue` = revenue,
+         `Total revenue per APU` = rev.awadm22)
 
 datatable(cat.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:13)),
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:17)),
                          scrollX = TRUE)) %>%
+  formatStyle(columns = "Total revenue per APU", backgroundColor = styleEqual(max(cat.apu.ruca$`Total revenue per APU`), "#a6bddb")) %>%
   formatStyle(columns = "Compensatory", backgroundColor = styleEqual(max(cat.apu.ruca$Compensatory), "#a6bddb")) %>%
   formatStyle(columns = "English learners", backgroundColor = styleEqual(max(cat.apu.ruca$`English learners`), "#a6bddb")) %>%
   formatStyle(columns = "Declining enrollment", backgroundColor = styleEqual(max(cat.apu.ruca$`Declining enrollment`), "#a6bddb")) %>%
@@ -526,9 +589,9 @@ datatable(cat.apu.ruca, class = "cell-border stripe", filter = "top", rownames =
   formatStyle(columns = "Small schools", backgroundColor = styleEqual(max(cat.apu.ruca$`Small schools`), "#a6bddb")) %>%
   formatStyle(columns = "Sparsity", backgroundColor = styleEqual(max(cat.apu.ruca$Sparsity), "#a6bddb")) %>%
   formatStyle(columns = "Transition aid", backgroundColor = styleEqual(max(cat.apu.ruca$`Transition aid`), "#a6bddb")) %>%
-  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.ruca$`Transportation sparsity`), "#a6bddb"))
-
-
+  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.ruca$`Transportation sparsity`), "#a6bddb")) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:18, "$", digits = 0)
 ```
 
 <br>
@@ -538,26 +601,43 @@ datatable(cat.apu.ruca, class = "cell-border stripe", filter = "top", rownames =
 <br>
 
 ```{r categories per apu pr}
-cat.apu.pr <- original %>%
+cat.total.rev.apu.pr <- original %>%
   filter(group %in% c(1,4),
          `District Name` != "Minnesota State Academies") %>%
   select(planning.region, awadm22, all_of(categories)) %>%
+  gather(key = "categories", value = "value", 2:16) %>%
+  group_by(planning.region) %>%
+  summarize(awadm22 = round(sum(value[categories == "awadm22"], na.rm = TRUE)),
+            revenue = round(sum(value[categories != "awadm22"], na.rm = TRUE))) %>%
+  ungroup() %>%
+  mutate(rev.awadm22 = round(revenue / awadm22))
+  
+cat.apu.pr <- original %>%
+  filter(group %in% c(1,4),
+         `District Name` != "Minnesota State Academies") %>%
+  drop_na(planning.region) %>%
+  select(planning.region, awadm22, all_of(categories)) %>%
   gather(key = "categories", value = "revenue", 2:16) %>%
   group_by(planning.region, categories) %>%
-  summarize(revenue = sum(revenue, na.rm = TRUE)) %>%
+  summarize(value = sum(revenue, na.rm = TRUE)) %>%
   ungroup() %>%
   group_by(planning.region) %>%
-  mutate(revenue.awadm22 = round(revenue / revenue[categories == "awadm22"])) %>%
+  mutate(rev.apu = round(value / value[categories=="awadm22"])) %>%
   ungroup() %>%
-  select(planning.region, categories, revenue.awadm22) %>%
   filter(categories != "awadm22") %>%
   left_join(var.codes, by = c("categories" = "Code")) %>%
-  select(planning.region, revenue.awadm22, Category) %>%
-  spread(Category, revenue.awadm22) 
+  select(planning.region, Category, rev.apu) %>%
+  spread(Category, rev.apu) %>%
+  left_join(cat.total.rev.apu.pr, by = "planning.region") %>%
+  select(planning.region, awadm22, revenue, rev.awadm22, 2:15) %>%
+  rename(APU = awadm22,
+         `Total revenue` = revenue,
+         `Total revenue per APU` = rev.awadm22)
 
 datatable(cat.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:13)),
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:17)),
                          scrollX = TRUE)) %>%
+  formatStyle(columns = "Total revenue per APU", backgroundColor = styleEqual(max(cat.apu.pr$`Total revenue per APU`), "#a6bddb")) %>%
   formatStyle(columns = "Compensatory", backgroundColor = styleEqual(max(cat.apu.pr$Compensatory), "#a6bddb")) %>%
   formatStyle(columns = "English learners", backgroundColor = styleEqual(max(cat.apu.pr$`English learners`), "#a6bddb")) %>%
   formatStyle(columns = "Declining enrollment", backgroundColor = styleEqual(max(cat.apu.pr$`Declining enrollment`), "#a6bddb")) %>%
@@ -569,9 +649,9 @@ datatable(cat.apu.pr, class = "cell-border stripe", filter = "top", rownames = F
   formatStyle(columns = "Small schools", backgroundColor = styleEqual(max(cat.apu.pr$`Small schools`), "#a6bddb")) %>%
   formatStyle(columns = "Sparsity", backgroundColor = styleEqual(max(cat.apu.pr$Sparsity), "#a6bddb")) %>%
   formatStyle(columns = "Transition aid", backgroundColor = styleEqual(max(cat.apu.pr$`Transition aid`), "#a6bddb")) %>%
-  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.pr$`Transportation sparsity`), "#a6bddb"))
-
-
+  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.pr$`Transportation sparsity`), "#a6bddb")) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:18, "$", digits = 0)
 ```
 
 <br>
@@ -581,26 +661,43 @@ datatable(cat.apu.pr, class = "cell-border stripe", filter = "top", rownames = F
 <br>
 
 ```{r categories per apu edr}
-cat.apu.edr <- original %>%
+cat.total.rev.apu.edr <- original %>%
   filter(group %in% c(1,4),
          `District Name` != "Minnesota State Academies") %>%
   select(edr, awadm22, all_of(categories)) %>%
+  gather(key = "categories", value = "value", 2:16) %>%
+  group_by(edr) %>%
+  summarize(awadm22 = round(sum(value[categories == "awadm22"], na.rm = TRUE)),
+            revenue = round(sum(value[categories != "awadm22"], na.rm = TRUE))) %>%
+  ungroup() %>%
+  mutate(rev.awadm22 = round(revenue / awadm22))
+  
+cat.apu.edr <- original %>%
+  filter(group %in% c(1,4),
+         `District Name` != "Minnesota State Academies") %>%
+  drop_na(edr) %>%
+  select(edr, awadm22, all_of(categories)) %>%
   gather(key = "categories", value = "revenue", 2:16) %>%
   group_by(edr, categories) %>%
-  summarize(revenue = sum(revenue, na.rm = TRUE)) %>%
+  summarize(value = sum(revenue, na.rm = TRUE)) %>%
   ungroup() %>%
   group_by(edr) %>%
-  mutate(revenue.awadm22 = round(revenue / revenue[categories == "awadm22"])) %>%
+  mutate(rev.apu = round(value / value[categories=="awadm22"])) %>%
   ungroup() %>%
-  select(edr, categories, revenue.awadm22) %>%
   filter(categories != "awadm22") %>%
   left_join(var.codes, by = c("categories" = "Code")) %>%
-  select(edr, revenue.awadm22, Category) %>%
-  spread(Category, revenue.awadm22) 
+  select(edr, Category, rev.apu) %>%
+  spread(Category, rev.apu) %>%
+  left_join(cat.total.rev.apu.edr, by = "edr") %>%
+  select(edr, awadm22, revenue, rev.awadm22, 2:15) %>%
+  rename(APU = awadm22,
+         `Total revenue` = revenue,
+         `Total revenue per APU` = rev.awadm22)
 
 datatable(cat.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:13)),
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:17)),
                          scrollX = TRUE)) %>%
+  formatStyle(columns = "Total revenue per APU", backgroundColor = styleEqual(max(cat.apu.edr$`Total revenue per APU`), "#a6bddb")) %>%
   formatStyle(columns = "Compensatory", backgroundColor = styleEqual(max(cat.apu.edr$Compensatory), "#a6bddb")) %>%
   formatStyle(columns = "English learners", backgroundColor = styleEqual(max(cat.apu.edr$`English learners`), "#a6bddb")) %>%
   formatStyle(columns = "Declining enrollment", backgroundColor = styleEqual(max(cat.apu.edr$`Declining enrollment`), "#a6bddb")) %>%
@@ -612,10 +709,12 @@ datatable(cat.apu.edr, class = "cell-border stripe", filter = "top", rownames = 
   formatStyle(columns = "Small schools", backgroundColor = styleEqual(max(cat.apu.edr$`Small schools`), "#a6bddb")) %>%
   formatStyle(columns = "Sparsity", backgroundColor = styleEqual(max(cat.apu.edr$Sparsity), "#a6bddb")) %>%
   formatStyle(columns = "Transition aid", backgroundColor = styleEqual(max(cat.apu.edr$`Transition aid`), "#a6bddb")) %>%
-  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.edr$`Transportation sparsity`), "#a6bddb"))
-
-
+  formatStyle(columns = "Transportation sparsity", backgroundColor = styleEqual(max(cat.apu.edr$`Transportation sparsity`), "#a6bddb")) %>%
+  formatCurrency(2, "", digits = 0) %>%
+  formatCurrency(3:18, "$", digits = 0)
 ```
+
+<br>
 
 
 

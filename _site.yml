@@ -40,6 +40,8 @@ navbar:
           href: options_adjustment.html
     - text: "All categories"
       href: all_categories.html
+    - text: "Scenarios"
+      href: scenarios.html
 output:
   html_document:
     css: "styles.css"

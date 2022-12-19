@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Scenarios</title>
+
+<script src="site_libs/header-attrs-2.18.1/header-attrs.js"></script>
+<script src="site_libs/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
+<script src="site_libs/jqueryui-1.11.4/jquery-ui.min.js"></script>
+<link href="site_libs/tocify-1.9.1/jquery.tocify.css" rel="stylesheet" />
+<script src="site_libs/tocify-1.9.1/jquery.tocify.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/htmlwidgets-1.5.4/htmlwidgets.js"></script>
+<link href="site_libs/datatables-css-0.0.0/datatables-crosstalk.css" rel="stylesheet" />
+<script src="site_libs/datatables-binding-0.26/datatables.js"></script>
+<link href="site_libs/dt-core-1.12.1/css/jquery.dataTables.min.css" rel="stylesheet" />
+<link href="site_libs/dt-core-1.12.1/css/jquery.dataTables.extra.css" rel="stylesheet" />
+<script src="site_libs/dt-core-1.12.1/js/jquery.dataTables.min.js"></script>
+<link href="site_libs/nouislider-7.0.10/jquery.nouislider.min.css" rel="stylesheet" />
+<script src="site_libs/nouislider-7.0.10/jquery.nouislider.min.js"></script>
+<link href="site_libs/selectize-0.12.0/selectize.bootstrap3.css" rel="stylesheet" />
+<script src="site_libs/selectize-0.12.0/selectize.min.js"></script>
+<link href="site_libs/crosstalk-1.2.0/css/crosstalk.min.css" rel="stylesheet" />
+<script src="site_libs/crosstalk-1.2.0/js/crosstalk.min.js"></script>
+<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
+<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+
+
+
+<link rel="stylesheet" href="styles.css" type="text/css" />
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+details > summary > p:only-child {
+  display: inline;
+}
+pre code {
+  padding: 0;
+}
+</style>
+
+
+<style type="text/css">
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #adb5bd;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script type="text/javascript">
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark the anchor link active (and if it's in a dropdown, also mark that active)
+  var dropdown = menuAnchor.closest('li.dropdown');
+  if (window.bootstrap) { // Bootstrap 4+
+    menuAnchor.addClass('active');
+    dropdown.find('> .dropdown-toggle').addClass('active');
+  } else { // Bootstrap 3
+    menuAnchor.parent().addClass('active');
+    dropdown.addClass('active');
+  }
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "\e259";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "\e258";
+  font-family: 'Glyphicons Halflings';
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+<style type="text/css">
+
+#section-TOC {
+  margin: 25px 0px 20px 0px;
+}
+@media (max-width: 768px) {
+#section-TOC {
+  position: relative;
+  width: 100%;
+}
+}
+
+@media print {
+.toc-content {
+  /* see https://github.com/w3c/csswg-drafts/issues/4434 */
+  float: right;
+}
+}
+
+.toc-content {
+  padding-left: 30px;
+  padding-right: 40px;
+}
+
+div.main-container {
+  max-width: 1200px;
+}
+
+div.tocify {
+  width: 20%;
+  max-width: 260px;
+  max-height: 85%;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  div.tocify {
+    width: 25%;
+  }
+}
+
+@media (max-width: 767px) {
+  div.tocify {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.tocify ul, .tocify li {
+  line-height: 20px;
+}
+
+.tocify-subheader .tocify-item {
+  font-size: 0.90em;
+}
+
+.tocify .list-group-item {
+  border-radius: 0px;
+}
+
+
+</style>
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+<!-- setup 3col/9col grid for toc_float and main content  -->
+<div class="row">
+<div class="col-xs-12 col-sm-4 col-md-3">
+<div id="section-TOC" class="tocify">
+</div>
+</div>
+
+<div class="toc-content col-xs-12 col-sm-8 col-md-9">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbar" data-bs-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">General Education Revenue formula analysis</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Summary of results</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    <span class="fa fa-gear"></span>
+     
+    Categories
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="basic_education.html">Basic Education</a>
+    </li>
+    <li>
+      <a href="extended_time.html">Extended Time</a>
+    </li>
+    <li>
+      <a href="gifted_talented.html">Gifted and Talented</a>
+    </li>
+    <li>
+      <a href="small_schools.html">Small schools</a>
+    </li>
+    <li>
+      <a href="declining_enrollment.html">Declining Enrollment</a>
+    </li>
+    <li>
+      <a href="local_optional.html">Local Optional</a>
+    </li>
+    <li>
+      <a href="basic_skills_comp.html">Basic skills - compensatory</a>
+    </li>
+    <li>
+      <a href="basic_skills_english.html">Basic skills - english learners</a>
+    </li>
+    <li>
+      <a href="sparsity.html">Sparsity</a>
+    </li>
+    <li>
+      <a href="operating_capital.html">Operating Capital</a>
+    </li>
+    <li>
+      <a href="transportation_sparsity.html">Transportation Sparsity</a>
+    </li>
+    <li>
+      <a href="equity.html">Equity</a>
+    </li>
+    <li>
+      <a href="transition.html">Transition</a>
+    </li>
+    <li>
+      <a href="pension_adjustment.html">Pension Adjustment</a>
+    </li>
+    <li>
+      <a href="options_adjustment.html">Options Adjustment</a>
+    </li>
+  </ul>
+</li>
+<li>
+  <a href="all_categories.html">All categories</a>
+</li>
+<li>
+  <a href="scenarios.html">Scenarios</a>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div id="section-header">
+
+
+
+<h1 class="title toc-ignore">Scenarios</h1>
+
+</div>
+
+
+<p><br></p>
+<p>There are multiple ways in which legislators can change the general
+education revenue formula. However, it is typical that legislators will
+increase difference funding mechanisms by percentages. For example, the
+legislature can increase the basic education revenue by 1%. In FY22 that
+would mean the revenue would jump from 6728 to 6795.28.</p>
+<p>Interestingly, other components of the general education revenue
+formula are dependent on the the basic education revenue value. For
+example, the declining enrollment component provides additional revenues
+for districts with decreasing enrollment by providing 28% of the basic
+education revenue value multiplied by the difference between FY22 and
+FY21 APUs. The components that are linked to the basic education revenue
+component are;</p>
+<ul>
+<li>Declining enrollment</li>
+<li>Compensatory</li>
+<li>Sparsity,</li>
+<li>Transportation sparsity, and</li>
+<li>Options adjustment.</li>
+</ul>
+<p>On the flip side of all this, the legislature could also choose other
+elements to adjust, such as increasing the gifted and talented revenue
+from $13 to $14 per APU.</p>
+<p>In this analysis, we are going to keep it simple in order to see what
+a 1% increase across all the elements within each component to determine
+what has the most impact and if there’s a difference in the geography
+and type of school.</p>
+<p>The following is a list of all the components and how each one was
+adjusted by 1%.</p>
+<p><br></p>
+<p><strong>Basic education revenue</strong></p>
+<p>The basic education revenue category provides a base amount of
+revenue per adjusted pupil units to each school district.</p>
+<p>A 1% would bring the revenue from $6,728 to $6,795.</p>
+<p><br></p>
+<p><strong>Extended time</strong></p>
+<p>This program allows a school district to count a student who
+participates in extended programming for up to an additional 0.2
+students in ADM for the time the student spends in summer school, etc….
+The allowance is $5,117 X the district’s extended time adjusted pupil
+units.</p>
+<p>A 1% increase would bring the revenue from $5,117 to $5,168</p>
+<p><br></p>
+<p><strong>Gifted and talented</strong></p>
+<p>A school district receives $13 per pupil unit for gifted and talented
+programming. $13 X adjusted pupil units. Must be spent on gifted and
+talented students.</p>
+<p>A 1% increase would bring the revenue from $13 to $13. There would be
+no change. So let’s bring this up $1 to $14. This would be a more
+accurate depiction of how the legislature would make a change for this
+component.</p>
+<p><br></p>
+<p><strong>Small schools</strong></p>
+<p>A school district that serves less than 960 pupil units is eligible
+for small schools revenue equal to $544 X the district’s adjusted pupil
+units, times the ratio of 960 less the district’s adjusted pupil units
+to 960.</p>
+<p>A 1% increase would bring the revenue from $544 to $549.</p>
+<p>In addition, a few schools received a dollar amount that wasn’t in
+the usual $544 x APU ratio due to having multiple schools in the
+district. A few of the schools in these districts qualified for small
+schools funding. Each of these were also increased.</p>
+<ul>
+<li>District 318, from $70,189.06 to $70,890.95,</li>
+<li>District 363, from $115,058.66 to $116,209.20,</li>
+<li>District 381, from $241,346.69 to $243,760.20,</li>
+<li>District 2142, from $404,349.22 to $408,392.70.</li>
+</ul>
+<p><br></p>
+<p><strong>Declining enrollment</strong></p>
+<p>Revenue equals the greater of zero or 28% of the formula allowance
+for that year and the difference between adjusted pupil units for the
+current year and the adjusted pupil units for the previous year.</p>
+<p>A 1* increase would bring the revenue from $1,884 to $1,903.</p>
+<p><br></p>
+<p><strong>Local optional aid</strong></p>
+<p>This revenue is meant to help equalize property rich schools
+districts and property poor school districts by providing extra aid to
+property poor districts. This is done by calculating the revenue, then
+the levy with equalizing factors, and then aid is distributed by
+subtracting the levy from the revenue.</p>
+<ul>
+<li>Revenue
+<ul>
+<li>Tier 1: from $300 to $303</li>
+<li>Tier 2: $424 to $428</li>
+</ul></li>
+<li>Levy equalizing factors
+<ul>
+<li>Tier 1: $880,000 to $888,800</li>
+<li>Tier 2: $510,000 to $515,100</li>
+</ul></li>
+</ul>
+<p><br></p>
+<p><strong>Compensatory</strong></p>
+<p>Compensatory is a site-based revenue and at least 50% of the revenue
+must be distributed to qualifying programs at each site. The revenue
+must be used to meet the educational needs of pupils whose progress
+toward meeting state or local content or performance standards is below
+the level that is appropriate for learners of their age. This revenue
+must be put into a separate account. Revenue increases as the number of
+compensatory pupil units goes up, which is driven by the number of free
+and reduced price meals.</p>
+<p>A pupil is counted as compensatory pupil if the pupil is eligible for
+free or reduced priced meals, which is set by the Federal government at
+130% and 185 % of the federal poverty guidelines.</p>
+<ul>
+<li>Compensatory Revenue = (Basic Formula Allowance - $839) x .6 x
+Compensatory Pupil Units</li>
+<li>Compensatory Pupil Units = (free lunch students + .5 x reduced lunch
+students) x the less of: one, or (free lunch students + .5 x reduced
+lunch students) / building ADM / .8</li>
+</ul>
+<p>A 1% increase in this funding is linked to the basic education
+revenue so it would be $5,889 to $5,956. However, we were not provided
+the number of students that qualified for free or reduced lunch at each
+district but rather just given the total compensatory value for each
+school district. So in this case, we just increased the total dollar
+amount by 1%.</p>
+<p><br></p>
+<p><strong>English learners</strong></p>
+<p>English learner revenue: a school district with at least one student
+eligible for EL services has a statutorily assigned minimum EL pupil
+count of 20. In addition, a district received more english learner
+revenue depending on the concentration of english learner students
+within the district.</p>
+<p>A 1% increase for the basic EL revenue would go from $704 to
+$711.</p>
+<p>A 1% increase for EL concentration revenue would go from $250 to
+$253.</p>
+<p><br></p>
+<p><strong>Sparsity</strong></p>
+<p>This is a vertical funding mechanism meant to shore up support for
+school districts that serve small student population for an area not
+served by other schools. It acknowledges the challenges associated with
+the lack of economies of scale to providing education.</p>
+<p>There are three parts to this revenue;</p>
+<ul>
+<li>Secondary school sparsity</li>
+<li>Elementary school sparsity</li>
+<li>Sparsity guarantee</li>
+</ul>
+<p>The two main components that can be changed are the following;</p>
+<ul>
+<li>Basic education revenue - $530: a 1% increase goes from $6,198.00 to
+$6,265.28.</li>
+<li>Elementary sparsity revenue: the total revenue received by each
+school district was provided so we just multiplied the total revenue by
+1%.</li>
+</ul>
+<p><br></p>
+<p><strong>Operating Capital aid</strong></p>
+<p>Operating capital revenue must be reserved and used for equipment and
+facility needs. The computation is, the sum of $79 per pupil unit and
+the product of $109 per pupil unit and the district’s average building
+age index. The age index is called the maintenance cost index (MCI) and
+is calculated as follows;</p>
+<ul>
+<li>MCI = (weighted square footage of buildings) / (Unweighted square
+footage of buildings)</li>
+<li>The weighted square food is the buildings square footage times the
+lesser of 1.5 or the sum of 1 + (the age of each building or addition /
+100).</li>
+</ul>
+<p>Operating capital revenue is provided through an equalized aid and
+levy and is computed as follows;</p>
+<ul>
+<li>Operating capital revenue - [$79 + (MCI x $109)] x adjusted pupil
+units</li>
+<li>Operating capital levy = Operating capital revenue x the less of 1
+or (adjusted net tax capacity /Adjusted Pupil Units) / $23,885</li>
+<li>Operating capital aid = Operating Capital Revenue - Operating
+Capital Levy</li>
+</ul>
+<p>The following adjustments were made for this scenario;</p>
+<p>A 1% increase of $79 is $80.</p>
+<p>A 1% increase of $109 is $110.</p>
+<p>A 1% increase for the equalizing factor goes from $23,885 to
+$24,124.</p>
+<p><br></p>
+<p><strong>Transportation sparsity</strong></p>
+<p>Transportation sparsity revenue provides revenue to school districts
+that have a relatively low ratio of pupils to the square mile area of
+the school district.</p>
+<p>the primary change here is the increase in the basic education
+revenue.</p>
+<p>A 1% would bring the revenue from $6,728 to $6,795.</p>
+<p><br></p>
+<p><strong>Equity</strong></p>
+<p>Equity revenue is designed to provide additional revenue to districts
+with lower amounts of referendum revenue. Calculations for this revenue
+is broken into two regions - the 7-county metro and greater Minnesota.
+The formula consists of three parts.</p>
+<ol style="list-style-type: decimal">
+<li>Basic equity revenue: equals the product of 125% x [$14 +($80 x
+district’s equity index)] x adjusted pupil units
+<ul>
+<li>Equity index = 1 - (basic formula allowance + local optional revenue
++ referendum revenue) / per pupil amount for the district at the 95th
+percentile in that region</li>
+<li>School districts of the first class (Minneapolis, St. Paul, and
+Duluth) don’t receive basic equity revenue</li>
+</ul></li>
+<li>Low referendum revenue: district has per pupil referendum revenue
+less than 10% of the statewide average receives an additional equity
+amount equal to the lesser of $100,000 or the difference between 10% of
+the statewide average referendum revenue and the district’s current
+amount of referendum revenue.</li>
+<li>Supplemental equity revenue: all school districts receive $50 per
+pupil unit.</li>
+</ol>
+<p>Equity aid and levy: A district’s total equity revenue is equalized
+on referendum market value using an equalizing factor of $510,000.</p>
+<p>The primary change in equity funding in this scenario is;</p>
+<ul>
+<li>Basic education revenue: from $6,728 to $6,795</li>
+<li>Updated revenue (1% scenario) from small schools, location optional
+referendum, transition revenue, and referendum revenue.</li>
+<li>A 1% increase to $14 is $14.</li>
+<li>A 1% increase to $80 is $81.</li>
+<li>A 1% increase to $50 is $51.</li>
+<li>A 1% increase to the equalizing factor goes from $500,000 to
+$515,100.</li>
+</ul>
+<p><br></p>
+<p><strong>Transition</strong></p>
+<p>No changes were made to this revenue.</p>
+<p><br></p>
+<p><strong>Pension adjustment</strong></p>
+<p>No changes were made to the pension adjustment.</p>
+<p><br></p>
+<p><strong>Options adjustment</strong></p>
+<p>The change here was in the basic education revenue allotment.</p>
+<p>A 1% increase goes from $6728 to $6,795.</p>
+<p><br></p>
+<div id="section-a-1-increase" class="section level1 tabsets">
+<h1 class="tabsets">A 1% increase</h1>
+<p>The following will provide the change in revenue if all components
+were increased by 1%.</p>
+<p><br></p>
+<div id="htmlwidget-2ce9ba5253312b4f8b96" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2ce9ba5253312b4f8b96">{"x":{"filter":"top","vertical":false,"filterHTML":"<tr>\n  <td data-type=\"character\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"1\" data-max=\"4290\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"1\" data-max=\"90\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"1\" data-max=\"4\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"0\" data-max=\"355805716.01\" data-scale=\"10\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"0\" data-max=\"359697112.2601\" data-scale=\"10\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"0\" data-max=\"3891396.25010002\" data-scale=\"12\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"0\" data-max=\"0.011195622960288\" data-scale=\"15\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n<\/tr>","data":[["A.C.G.C. Public School District","Academia Cesar Chavez Charter School","Academic Arts High School","Achieve Language Academy","Ada-Borup-West Public Schools","Adrian Public School District","AFSA High School","Agamim Classical Academy","Aim Academy of Science and Technology","Aitkin Public School District","Albany Public School District","Albert Lea Public School District","Alden-Conger Public School District","Alexandria Public School District","Annandale Public School District","Anoka-Hennepin Public School District","Arcadia Charter School","Art and Science Academy","Ashby Public School District","Aspen Academy","Aspire Academy Charter School","Athlos Academy of Saint Cloud","Athlos Leadership Academy","Augsburg Fairview Academy","Aurora Charter School","Aurora Waasakone Community of Learners Charter School","Austin Public School District","Avalon School","Badger Public School District","Bagley Public School District","Barnesville Public School District","Barnum Public School District","Battle Lake Public School District","Bdote Learning Center","Beacon Academy","Becker Public School District","Belgrade-Brooten-Elrosa Public School District","Belle Plaine Public School District","Bemidji Public School District","Benson Public School District","Bertha-Hewitt Public School District","Best Academy","Big Lake Public School District","Birch Grove Community School","Bird Island-Olivia-Lake Lillian Public School District","Blackduck Public School District","Blooming Prairie Public School Dist","Bloomington Public School District","Blue Earth Area Public School","BlueSky Charter School","Bluffview Montessori","Braham Public School District","Brainerd Public School District","Brandon-Evansville Public Schools","Breckenridge Public School District","Brooklyn Center School District","Browerville Public School District","Browns Valley Public School District","Buffalo Lake-Hector-Stewart Public Schools","Buffalo-Hanover-Montrose Public Sch","Burnsville Public School District","Butterfield Public School District","Byron Public School District","Caledonia Public School District","Cambridge-Isanti Public School District","Campbell-Tintah Public School District","Canby Public School District","Cannon Falls Public School District","Cannon River STEM School","Career Pathways","Carlton Public School District","Cass Lake-Bena Public Schools","Cedar Mountain School District","CEDAR RIVERSIDE COMMUNITY SCHOOL","Centennial Public School District","Central Public School District","Chatfield Public Schools","Chisago Lakes School District","Chisholm Public School District","Chokio-Alberta Public Schools","City Academy","Clarkfield Charter School","Clearbrook-Gonvick School District","Cleveland Public School District","Climax-Shelly Public Schools","Clinton-Graceville-Beardsley","Cloquet Public School District","College Preparatory Elementary","Cologne Academy","Columbia Heights Public School District","Comfrey Public School District","Community of Peace Academy","Community School of Excellence","Cook County Public Schools","Cornerstone Montessori Elementary","Cromwell-Wright Public Schools","Crookston Public School District","Crosby-Ironton Public School District","Cross River Charter School","Crosslake Community Charter School","Cyber Village Academy","Dassel-Cokato Public School District","DaVinci Academy","Dawson-Boyd Public School District","Deer River Public School District","Delano Public School District","Detroit Lakes Public School District","Dilworth-Glyndon-Felton","Discovery Charter School","Discovery Public School of Faribault","Discovery Woods","Dover-Eyota Public School District","Duluth Public School District","Duluth Public Schools Academy","E.C.H.O. Charter School","Eagle Ridge Academy Charter School","East Central School District","East Grand Forks Public School Dist","East Range Academy of Technology and Science","East-West International Education Academy","Eastern Carver County Public Schools","Eden Prairie Public School District","Eden Valley-Watkins School District","Edgerton Public School District","Edina Public School District","EdVisions Off Campus School","El Colegio Charter School","Elk River School District","Ellsworth Public School District","Ely Public School District","Escuela Exitos Charter School","Esko Public School District","Excell Academy Charter","Exploration High School","Face To Face Academy","Fairmont Area School District","Faribault Public School District","Farmington Public School District","Fergus Falls Public School District","Fertile-Beltrami School District","Fillmore Central","Fisher Public School District","FIT Academy","Floodwood Public School District","Foley Public School District","Forest Lake Public School District","Fosston Public School District","Franconia - non operating district","Frazee-Vergas Public School District","Fridley Public School District","Friendship Academy of the Arts","Fulda Public School District","Gateway STEM Academy","Gentry Academy Charter School","GFW Public Schools","Glacial Hills Elementary","Glencoe-Silver Lake School District","Glenville-Emmons School District","Global Academy","Goodhue Public School District","Goodridge Public School District","Granada Huntley East Chain","Grand Meadow Public School District","Grand Rapids Public School District","Great Expectations","Great Oaks Academy Charter School","Great River School","Green Isle Community School","Greenbush-Middle River School Dist.","Greenway Public School District","Grygla Public School District","Hancock Public School District","Harbor City International Charter","Hastings Public School District","Hawley Public School District","Hayfield Public School District","Hendricks Public School District","Hennepin Elementary School","Henning Public School District","Herman-Norcross School District","Hermantown Public School District","Heron Lake-Okabena School District","Hiawatha Academies","Hibbing Public School District","High School For Recording Arts","Higher Ground Academy","Hill City Public School District","Hills-Beaver Creek School District","Hinckley-Finlayson School District","Hmong College Prep Academy","Holdingford Public School District","HOPE Community Academy","Hopkins Public School District","Horizon Science Academy Twin Cities","Houston Public School District","Howard Lake-Waverly-Winsted","Hutchinson Public School District","Innovation Science and Technology Academy Charter School","International Falls School District","International Spanish Language Academy","Inver Grove Heights Schools","Isle Public School District","Ivanhoe Public School District","Jackson County Central School District","Jane Goodall Environmental Sciences Academy","Janesville-Waldorf-Pemberton","Jennings Community School","Jordan Public School District","Kaleidoscope Charter School","Kalon Prep Academy","Kasson-Mantorville School District","Kato Public Charter School","Kelliher Public School District","Kenyon-Wanamingo School District","Kerkhoven-Murdock-Sunburg","Kimball Public School District","Kingsland Public School District","KIPP Minnesota Charter School","Kittson Central School District","La Crescent Montessori &amp; STEM School","La Crescent-Hokah School District","Lac qui Parle Valley School District","Lafayette Public Charter School","Lake Benton Public School District","Lake City Public School District","Lake Crystal-Wellcome Memorial","Lake of The Woods School District","Lake Park Audubon School District","Lake Superior Public School Dist.","Lakes International Language Academy","Lakeview School District","Lakeville Public School District","Lancaster Public School District","Lanesboro Public School District","Laporte Public School District","Laura Jeffrey Academy Charter","Le Sueur-Henderson School District","Legacy of Dr. Josie R. Johnson Montessori","LeRoy-Ostrander Public Schools","Lester Prairie Public School Dist.","Level Up Academy","Lewiston-Altura Public School District","Life Prep","Lincoln International High School","Lionsgate Academy","Litchfield Public School District","Little Falls Public School District","Littlefork-Big Falls School Dist.","Long Prairie-Grey Eagle School District","LoveWorks Academy For Arts","Luverne Public School District","Lyle Public School District","Lynd Public School District","Mabel-Canton Public School District","MACCRAY School District","Madelia Public School District","Mahnomen Public School District","Mahtomedi Public School District","Mankato Public School District","Maple Lake Public School District","Maple River School District","Marine Area Community School","Marshall County Central Schools","Marshall Public School District","Martin County West School District","MASTERY SCHOOL","Math And Science Academy","McGregor Public School District","Medford Public School District","Melrose Public School District","Menahga Public School District","Mesabi East School District","Metro Deaf School","Metro Schools Charter","Metro Tech Academy Charter School","Midway Star Academy","Milaca Public School District","Milroy Public School District","MINISINAAKWAANG LEADERSHIP ACADEMY","Minneapolis Public School District","Minneota Public School District","Minnesota Excellence in Learning Academy","Minnesota Internship Center","Minnesota Math and Science Academy","Minnesota New Country School","Minnesota Online High School","Minnesota State Academies","Minnesota State Academies","Minnesota Transitions Charter School","Minnesota Wildflower Montessori School","Minnetonka Public School District","Minnewaska School District","Modern Montessori Charter School","Montevideo Public School District","Monticello Public School District","Moorhead Area Public School District","Moose Lake Public School District","Mora Public School District","Morris Area Public Schools","Mounds View Public School District","Mountain Iron-Buhl School District","Mountain Lake Public Schools","Murray County Central School Dist.","Nasha Shkola Charter School","Nashwauk-Keewatin School District","NATURAL SCIENCE ACADEMY","Naytahwaush Community School","Nerstrand Charter School","Nett Lake Public School District","Nevis Public School District","New Century Academy","New Century School","New City School","New Discoveries Montessori Academy","New Heights School, Inc.","New London-Spicer School District","New Millennium Academy","New Prague Area Schools","New Ulm Public School District","New York Mills Public School Dist.","Nicollet Public School District","Noble Academy","Norman County East School District","North Branch Area Public Schools","North Lakes Academy","North Metro Flex Academy","North Shore Community School","North St. Paul-Maplewood Oakdale Public School District","Northeast College Prep","Northern Lights Community School","Northfield Public School District","Northland Community Schools","Northwest Passage High School","Notre Ecole Academy","Nova Classical Academy","NRHEG School District","Oak Hill Montessori Community School","Ogilvie Public School District","Onamia Public School District","Orono Public School District","Ortonville Public Schools","Osakis Public School District","Oshki Ogimaag Charter School","Osseo Public School District","Owatonna Public School District","PACT Charter School","Paladin Career and Technical High School","Park Rapids Public School District","Parkers Prairie Public School Dist.","Parnassus Preparatory Charter School","Partnership Academy, Inc.","Paynesville Public School District","Pelican Rapids Public School District","Pequot Lakes Public Schools","Perham-Dent Public School District","Phoenix Academy Charter School","Pierz Public School District","Pillager Area Charter School","Pillager Public School District","PIM Arts High School","Pine City Public School District","Pine Island Public School District","Pine Point Public School District","Pine River-Backus School District","Pipestone Area School District","Plainview-Elgin-Millville","Prairie Creek Community School","Prairie Seeds Academy","Princeton Public School District","Prinsburg - non operating district","Prior Lake-Savage Area Schools","Proctor Public School District","Prodeo Academy","Progeny Academy Charter School","Quantum STEAM Academy Charter School","Randolph Public School District","Red Lake County Central Public Schools","Red Lake Falls Public School Dist.","Red Lake Public School District","Red Rock Central School District","Red Wing Public School District","Redwood Area School District","Renville County West School District","Richfield Public School District","Ridgeway Community School","Riverway Learning Community Charter","Robbinsdale Public School District","Rochester Beacon Academy","Rochester Math And Science Academy","Rochester Public School District","Rochester STEM Academy","Rock Ridge Public Schools","Rockford Public School District","Rocori Public School District","Rosa Parks Charter High School","Roseau Public School District","Rosemount-Apple Valley-Eagan","Roseville Public School District","Rothsay Public School District","Round Lake-Brewster Public Schools","Royalton Public School District","RTR Public Schools","Rush City Public School District","Rushford-Peterson Public Schools","SAGE Academy Charter School","Saint Cloud Math and Science Academy Charter School","Saint Paul Conservatory for Performing Artists","Sartell-St. Stephen School District","Sauk Centre Public School District","Sauk Rapids-Rice Public Schools","Schoolcraft Learning Community Charter","SciTech Academy Charter School","Sebeka Public School District","Sejong Academy of Minnesota","Seven Hills Preparatory Academy","Shakopee Public School District","Sibley East School District","Skyline Math and Science Academy","Sleepy Eye Public School District","Sojourner Truth Academy","South Koochiching School District","South St. Paul Public School District","South Washington County Schools","Southland Public School District","Southside Family Charter School","Spectrum High School","Spero Academy","Spring Grove School District","Spring Lake Park Public Schools","Springfield Public School District","St. Anthony-New Brighton Schools","St. Charles Public School District","St. Clair Public School District","St. Cloud Public School District","St. Croix Preparatory Academy","St. Francis Area Schools","St. James Public School District","St. Louis County School District","St. Louis Park Public School District","St. Michael-Albertville School District","St. Paul City School","St. Paul Public School District","St. Paul School of Northern Lights","St. Peter Public School District","Staples-Motley School District","Star of the North Academy Charter School","STEAM Academy Charter School","STEP Academy Charter School","Stephen-Argyle Central Schools","Stewartville Public School District","Stillwater Area Public Schools","Stonebridge World School","STRIDE Academy","Success Academy","Swan River Montessori Charter School","Swanville Public School District","TEAM Academy","Technical Academies of Minnesota","The Journey School","Thief River Falls School District","Three Rivers Montessori School","Tracy Area Public School District","TrekNorth High School","Tri-City United School District","Tri-County School District","TRIO Wolf Creek Distance Learning","Triton School District","Truman Public School District","Twin Cities Academy","Twin Cities German Immersion Charter School","Twin Cities International Schools","Twin Lakes STEM Academy","Ubah Medical Academy Charter School","Ulen-Hitterdal Public School Dist","Underwood Public School District","United South Central School District","Universal Academy Charter School","Upper Mississippi Academy","Upsala Public School District","Urban Academy Charter School","Venture Academy","Vermilion Country School","Verndale Public School District","Voyageurs Expeditionary","Wabasha-Kellogg Public School District","Wabasso Public School District","Waconia Public School District","Wadena-Deer Creek School District","Walker-Hackensack-Akeley School District","Warren-Alvarado-Oslo School District","Warroad Public School District","Waseca Public School District","Watershed High School","Watertown-Mayer Public School District","Waterville-Elysian-Morristown Public School District","Waubun-Ogema-White Earth Schools","Wayzata Public School District","West Central Area","West St. Paul-Mendota Heights-Eagan","Westbrook-Walnut Grove Schools","Westonka Public School District","Wheaton Area Public School District","White Bear Lake School District","Willmar Public School District","Willow River Public School District","Win-E-Mac School District","Windom Public School District","Winona Area Public School District","Woodbury Leadership Academy","World Learner Charter School","Worthington Public School District","Wrenshall Public School District","Yellow Medicine East","Yinghua Academy","Zumbrota-Mazeppa School District"],[2396,4073,4119,4018,2910,511,4074,4220,4285,1,745,241,242,206,876,11,4091,4227,261,4184,4280,4250,4011,4111,4067,4271,492,4075,676,162,146,91,542,4226,4124,726,2364,716,31,777,786,4192,727,4145,2534,32,756,271,2860,4082,4001,314,181,2908,846,286,787,801,2159,877,191,836,531,299,911,852,891,252,4194,4237,93,115,2754,4004,12,108,227,2144,695,771,4000,4172,2311,391,592,2888,94,4193,4188,13,81,4015,4181,166,4201,95,593,182,4287,4059,4025,466,4185,378,317,879,22,2164,4221,4081,4198,533,709,4020,4026,4122,2580,595,4166,4274,112,272,463,581,273,4151,4057,728,514,696,4283,99,4068,4279,4036,2752,656,192,544,599,2198,600,4244,698,51,831,601,323,23,14,4079,505,4264,4284,2365,4168,2859,2886,4186,253,561,2536,495,318,4100,4268,4105,4144,2683,316,447,768,4085,200,150,203,402,4205,545,264,700,330,4170,701,4039,4027,2,671,2165,4103,738,4070,270,4267,294,2687,423,4282,361,4167,199,473,403,2895,4229,2835,4031,717,4118,4290,204,4066,36,2172,775,739,2137,4191,2171,4054,300,2853,4050,404,813,2071,390,2889,381,4116,2167,194,356,229,306,4164,2397,4189,499,424,4233,857,4035,4178,4183,465,482,362,2753,4139,2184,497,415,238,2180,837,432,832,77,881,2135,4254,441,413,2448,4209,4043,4,763,740,821,2711,4005,4131,4277,4153,912,635,4177,1,414,4230,4102,4231,4007,4150,160,160,4017,4265,276,2149,4273,129,882,152,97,332,2769,621,712,173,2169,4208,319,4187,4155,4055,707,308,4093,4240,4089,4161,4003,345,4143,721,88,553,507,4171,2215,138,4053,4243,4084,622,4219,4146,659,118,4049,4276,4098,2168,4289,333,480,278,2903,213,4195,279,761,4008,4104,309,547,4199,4097,741,548,186,549,4253,484,4080,116,4110,578,255,25,2174,2689,2899,4090,4126,477,815,719,704,4213,4263,4269,195,2906,630,38,2884,256,2897,2890,280,4083,4064,281,4238,4135,535,4204,2909,883,750,4056,682,196,623,850,2907,485,2902,139,239,4087,4223,4112,748,743,47,4058,4261,820,4215,4159,720,2310,4255,84,4038,363,6,833,500,4162,4160,4113,297,16,85,282,858,75,742,4120,15,840,2142,283,885,4029,625,4275,508,2170,4224,4270,4200,2856,534,834,4169,4142,4232,4137,486,4127,4217,4258,564,4266,2904,4106,2905,2358,4095,2125,458,4132,4152,4078,4239,4121,914,550,2134,4225,4210,487,4088,4218,4207,818,4107,811,640,110,2155,113,2176,690,829,4092,111,2143,435,284,2342,197,2898,277,803,624,347,577,2609,177,861,4228,4016,518,100,2190,4140,2805],[1,7,7,7,1,1,7,7,7,1,1,1,1,1,1,1,7,7,1,7,7,7,7,7,7,7,1,7,1,1,1,1,1,7,7,1,1,1,1,1,1,7,1,7,1,1,1,1,1,7,7,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,7,7,1,1,1,7,1,1,1,1,1,1,7,7,1,1,1,1,1,7,7,1,1,7,7,1,7,1,1,1,7,7,7,1,7,1,1,1,1,1,7,7,7,1,1,7,7,7,1,1,7,7,1,1,1,1,1,7,7,1,1,1,7,1,7,7,7,1,1,1,1,1,1,1,7,1,1,1,1,2,1,1,7,1,7,7,1,7,1,1,7,1,1,1,1,1,7,7,7,7,1,1,1,1,7,1,1,1,1,7,1,1,1,1,7,1,7,7,1,1,1,7,1,7,1,7,1,1,1,7,1,7,1,1,1,1,7,1,7,1,7,7,1,7,1,1,1,1,1,7,1,7,1,1,7,1,1,1,1,1,1,7,1,1,1,1,1,7,1,7,1,1,7,1,7,7,7,1,1,1,1,7,1,1,1,1,1,1,1,1,1,1,1,7,1,1,1,7,7,1,1,1,1,1,7,7,7,7,1,1,7,3,1,7,7,7,7,7,70,90,7,7,1,1,7,1,1,1,1,1,1,1,1,1,1,7,1,7,7,7,1,1,7,7,7,7,7,1,7,1,1,1,1,7,1,1,7,7,7,1,7,7,1,1,7,7,7,1,7,1,1,1,1,1,7,1,1,7,7,1,1,7,7,1,1,1,1,7,1,7,1,7,1,1,1,1,1,1,7,7,1,2,1,1,7,7,7,1,1,1,1,1,1,1,1,1,7,7,1,7,7,1,7,1,1,1,7,1,1,1,1,1,1,1,1,1,7,7,7,1,1,1,7,7,1,7,7,1,1,7,1,7,1,3,1,1,7,7,7,1,1,1,1,1,1,1,7,1,1,1,1,1,7,1,7,1,1,7,7,7,1,1,1,7,7,7,7,1,7,7,7,1,7,1,7,1,1,7,1,1,7,7,7,7,7,1,1,1,7,7,1,7,7,7,1,7,1,1,1,1,1,1,1,1,7,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,7,7,1,1,1,7,1],[1,4,4,4,1,1,4,4,4,1,1,1,1,1,1,1,4,4,1,4,4,4,4,4,4,4,1,4,1,1,1,1,1,4,4,1,1,1,1,1,1,4,1,4,1,1,1,1,1,4,4,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,4,4,1,1,1,4,1,1,1,1,1,1,4,4,1,1,1,1,1,4,4,1,1,4,4,1,4,1,1,1,4,4,4,1,4,1,1,1,1,1,4,4,4,1,1,4,4,4,1,1,4,4,1,1,1,1,1,4,4,1,1,1,4,1,4,4,4,1,1,1,1,1,1,1,4,1,1,1,1,1,1,1,4,1,4,4,1,4,1,1,4,1,1,1,1,1,4,4,4,4,1,1,1,1,4,1,1,1,1,4,1,1,1,1,4,1,4,4,1,1,1,4,1,4,1,4,1,1,1,4,1,4,1,1,1,1,4,1,4,1,4,4,1,4,1,1,1,1,1,4,1,4,1,1,4,1,1,1,1,1,1,4,1,1,1,1,1,4,1,4,1,1,4,1,4,4,4,1,1,1,1,4,1,1,1,1,1,1,1,1,1,1,1,4,1,1,1,4,4,1,1,1,1,1,4,4,4,4,1,1,4,1,1,4,4,4,4,4,1,1,4,4,1,1,4,1,1,1,1,1,1,1,1,1,1,4,1,4,4,4,1,1,4,4,4,4,4,1,4,1,1,1,1,4,1,1,4,4,4,1,4,4,1,1,4,4,4,1,4,1,1,1,1,1,4,1,1,4,4,1,1,4,4,1,1,1,1,4,1,4,1,4,1,1,1,1,1,1,4,4,1,1,1,1,4,4,4,1,1,1,1,1,1,1,1,1,4,4,1,4,4,1,4,1,1,1,4,1,1,1,1,1,1,1,1,1,4,4,4,1,1,1,4,4,1,4,4,1,1,4,1,4,1,1,1,1,4,4,4,1,1,1,1,1,1,1,4,1,1,1,1,1,4,1,4,1,1,4,4,4,1,1,1,4,4,4,4,1,4,4,4,1,4,1,4,1,1,4,1,1,4,4,4,4,4,1,1,1,4,4,1,4,4,4,1,4,1,1,1,1,1,1,1,1,4,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,4,4,1,1,1,4,1],[7589982.07,4264726.2159,936366.56,4013783.12172,6731668.899355,5072270.86,3862376.64676,2339731.3693,1523012.5,9104479.85,14430654.99,32187978.01,3982628.61,33092889.2,15595094.71,312717288.69,1106976.84,2705405.43,2785750,5363588.63,767207.6,5512995.32956,8213782.98268,1292190.8432,4835065.88638,957682.44,47584635.88,2239547.4,2067150.12,8423177.19,7400277.38,6173887.75,3421908.82878,1310511.2078,4437673.4773,22143140.53,5720832.42,12420427.74,41831092.286558,6878435.64,4791544.69924,7852967.09262,25502594.46,303070.8392,5568103.79,6323092.3,6786293.98,83393996.02,9269740.79,5040028.06,1667895.63,6287441.28544,51855648.79,4566225.023605,5784647.87,24291414.81,4909770.66178,1627184.31,4382683.37,43416812.64,66371442.66,2328021.02,18476808.53,6204055.75,40839310.33,1296184.24,5582857.46,8791370.84,2344805.51,1330533.8,3153747.09138,13216833.42,3792826.63,8811.08592,50735398.05,7542907.52,7251348.25,26531907.76,6624560.22,1442041.57,1445312.512,393286.92,4098121.56,4251957.12,2035498.52,3443280.51482,25121926.3,2495711.4156,6744209.64662,33651302.7,1272974.11,8547606.3186,15272662.23234,4538795.18,1138743.12696,3201221.72,10173648.17,8103695.02584,267834.3,3024994.95558,2168914.126,17764001.346845,6875189.08444,5061592.2,8903004.47066,18775463.82872,23220199.413365,13365069.79,1772751.21,556235.74,873504.84,10035428.92,67047198.2057275,7980978.33088,739462.81592,10911883.7869,6834994.36,16582555.03,1776018.83484,0,73791713.4662885,69954141.53,7677986.73188,3969558.69,64550301.690125,946710.71,1176263.1677,106856534.44,1381689.57,4784824.99,1073688.82,10184628.5,5143764.6076,489335.43,1085339.39532,14975239.25,31587502.99,55805904.83,25178813.79,4564419.57,5050277.710472,2087484.5,2762931.23,1966195.67,15702342.63,46344914.2794025,5603629.6,232930,7240821.75774,26306590.49,3344387.12048,3452666.2017,2664263.6023,2549731.34,5828267.39,763904.7,12130985.61,2579709.59,4874658.32,5961014.72,2830562.03,2726795.751075,3891963.77,34612086.75,972724.97,1453414.24,6044513.56,376390.05,2959322.256385,9144336.75172,2016921.57,3561317.29,1996062.5026,33278974.13,8198738.07,5726106.99,1619360.17,4402162.8324,3204519.04,1206486.38,16260987.14,2819379.5,17267052.5094,19274241.02986,3618579.90848,12515632.42032,2899878.02,3454827.32,8888850.01,23933978.89754,8573807.61,6702033.664,54536823.44,982090.3005,19654915.91,9839689.92,21371598.7,759755.87,7839011.33,2766259.68,28260723.88,3800512.06,1236576.44,9552051.1,993082.4235,5628900.38,980531.532,14843252.54,4231402.76,962348.9,18311673.71,650582.24,3906938.824765,6001979.24392,6960657.9,6176132.841588,4626892.53,6588828.7294,2233080.96,732333.72,8560230.29,7424542.23,538402.9877,1612673.46,9692585.07,7706559.89,4553545.58,5886719.22,11942647.68,9554916.08,5506071.38,90313044.33,1895541.23,3344512.92,3188929.26,558701.33,7639925.4,1577582.7658,2384384.86,4048720.69,1357719.96,5978127.15,2958713.37,1612899.35226,3434573.3555,13019195.39,20100167.38,3510432.49,8932187.68594,1748644.9861,9635865.64,2809882.3,1907027.25,2125905.08932,6364762.73,5406594.57,7399001.05,25447297.9,70408305.04,6340685.09,7119210.03,1701464.94638,4338923.7265625,22426634.08,5922789.36727,10965.7002,4234774.33,4422106.57,7373776.79,10864429.671212,8961224.627225,8039815.68,576084.91,8810176.06302,960706.5,4863747.83912,14268734.3,729441.42588,11200.89334,278752677.93,4137517.28,2209733.68822,5025477.868,6311017.048,1836093.86886,1774854.03,172547.7,0,46312767.61648,254604.57,84624520.88,10642559.756036,1313218.1076,14669329.48,32402908.17,60328670.1012575,4822800.66,13575931.7,8875661.34,93888246.61,4870091.81,4801834.47,6279081.25,1307493.29802,5286319.60218,0,1488253.98,864294.02,1101033.41,5217182.74,1194890.00508,4570166.08952,2508671.13,1870195.8587,1047814.07,12214190.42,7703838.96544,32990433.79,17423372.49616,6775706.96,3178176.72,7476156.67868,2664766.62,21097324.3711725,5212174.93,2265322.01,2744404.8354,87230040.17,3897218.07432,1125461.56824,31161926.71,4047080.12177,1295143.97128,340670.14,7646677.88794,7002832.81,1079215.45,4731676.09,6262605.48,22256298.84,4739244.83,7072074.74,299048.883525,169575661.71,41250891.82,5356384.6725,2318349.7908,14236718.7509175,4801784.74174,10422856.6052,5356283.5391,7287129.42556,7812552.05,13783092.26,12683123.9704,1308197.97,10558375.44,481394.95254,10081543.54,3244736.66118,12971165.15,12029415.19,1012698.4,7927311.8412875,9314813.38342,12097009.4,1347601.92,7660361.6487875,25785576.06,11714,68973422.89,14496022.325579,8127368.8073,739387.41744,1003231.4,6106733.48,3784629.77,3686325.53,18144003.880265,3827407.78,20361573.4,9382264.31436,5025142.05,37216907.21,784910.53,1222239.9318875,99367051.67,939988.13,5094875.90448,142041008.91,1602032.668,20982472.52,12795398.9687,18959647.35172,750327.73006,9942759.49,231235074.37,63434415.7,2771779.88,4332184.6171335,8684284.2,5596673.65,7018190.47,5512285.68,750691.93,2577283.8,3559074.928,33207160.09,8321028.3,35892792.58,1584619.08,3571472.568,4287557.188435,2510899.26538,8636635.32024,66472057.97,9124620.01,3120350.51,5002497.24,3792206.98934,4063762.13,26817966.07,146905615.12,3572668.84579,1059254.21,6923567.8196,1116048.92138,3094693.18,49750718.68224,5080563.02518,14409208.26,8940388.31,6074711.52,89237012.60946,9032860.45,31587495.88,9350535.33,20396725.183783,35467656.79,51004568.09,6563167.90728,355805716.01,1605268.8891,18166688.49,8810244.33,1632850.2635,693062.1,6146570.248,3066517.22,17066970.11,65672136.31246,3178444.0893,4882520.7,2715366.5358,1069592.45,2928270.74,1019407.44,1257252.83,1323972.88,15888063.84,1255307.33,6107371.27,2316126.89,15960904.45,2534711.33,1530880.52,8936144.28,2234192.73,4747687.832,4500161.9724,13075586.9,2433428.57074,4014187.3,2528502.22,4746509.52,6381242.64,4694724.7401,2449824.48446,3031918.31,5403691.7782,3975250.2014,317436.65864,4812211.195095,1120539.6,7889574.26,3728397.26,32336045.33,9212884.6765035,6607230.704972,5393306.64,9373936.97,14918391.63,479999.86,12228302.52,6018157.0089095,7219116.9576575,92451353.80126,6794328.81154,42003886.28,4574547.59,18448349.6,3593369.43,66369746.6995125,40125531.23,3855440.2,3898184.35,10255208.08,21360208.51622,5097906.5499,1550079.44,36356767.09,3341693.15,5887534.23,6422072.806,10702779.06],[7672491.642,4306785.2901,945775.5856,4052328.18902,6803116.477455,5127214.8611,3900792.36376,2362908.1111,1538366.575,9200087.5485,14590079.5824,32533067.8776,4026253.4561,33442127.242,15758556.8171,315964936.3669,1118111.7084,2732618.1343,2816358.77,5417663.6463,774938.306,5567713.70236,8291799.60248,1305143.5632,4882552.11788,967316.5444,48086672.1663,2262026.9394,2088725.0137,8513451.0494,7481863.8213,6240569.44,3456183.58158,1323633.5968,4481671.0806,22375154.2353,5783145.8342,12558805.2499,42290968.738258,6954253.1189,4841600.87164,7930768.50862,25780994.1821,306072.3078,5629799.9329,6390642.883,6859409.2173,84248113.9302,9371451.2829,5090680.7806,1684681.6463,6356014.30554,52396222.6379,4617129.692905,5848081.4962,24552227.0306,4963095.07788,1644152.6106,4429677.3937,43898783.7914,67067727.3866,2352424.0302,18680729.5553,6272037.835,41289148.8908,1309875.2324,5642700.8371,8883858.2784,2368344.3951,1343905.858,3186536.87508,13357430.9842,3833895.3063,8811.08592,51264877.7605,7622180.4652,7331414.3175,26809565.0376,6694128.7547,1457253.1257,1459823.588,397236.8592,4141736.6356,4295346.0612,2057151.7502,3475559.05562,25391959.233,2519874.9996,6811062.06072,33999577.087,1286295.0636,8632200.0017,15422375.40914,4584816.8218,1150076.71956,3235985.6122,10284492.6492,8190493.01774,270540.083,3054998.00018,2190667.1802,17956565.959645,6943973.00704,5115811.012,8997206.23316,18971689.66922,23462937.445265,13509557.5904,1790383.7172,561817.9574,882289.2784,10143795.6492,67747615.9060275,8059740.23578,746769.85722,11021538.9588,6908930.9086,16764477.4828,1793515.59884,0,74563674.3931885,70669812.5653,7761959.14108,4013224.4044,65210699.215025,956231.6771,1188058.5487,107965693.4644,1396094.4657,4835273.2699,1084522.7882,10297469.1425,5194567.8576,494275.3443,1096215.44732,15140861.6975,31933565.7999,56417057.0958,25440599.1379,4614734.8282,5106033.359572,2109301.845,2790728.6023,1986150.7867,15873252.5538,46834132.3573025,5664183.901,235395,7321289.63464,26578760.7849,3377764.65728,3489732.4331,2690521.0813,2575530.8734,5891337.1439,771566.937,12265787.4161,2608111.0759,4923017.896,6025120.2997,2860401.0653,2756021.573375,3933832.2402,34967880.7769,982519.6297,1468092.4424,6105253.6863,380168.5505,2982396.418085,9243820.45592,2038500.3732,3598714.5604,2016121.4428,33629341.0013,8288145.4857,5789034.9749,1637032.7217,4445432.4034,3238069.8104,1219230.2338,16431867.1314,2850192.395,17438150.8075,19481874.83796,3654600.09698,12636624.73732,2930682.3552,3492108.1857,8986814.1076,24174250.87494,8667627.2061,6766185.9984,55099619.4044,991882.3535,19859759.7216,9942283.9892,21608577.9895,767403.2087,7925038.6333,2794137.6368,28558285.4588,3839555.7206,1249783.6969,9658270.361,1002913.7133,5690949.3013,990390.906,14997618.5554,4273945.0176,972080.129,18510834.1746,657110.4524,3947844.854965,6064918.92162,7035319.1965,6244198.270488,4677943.8628,6653770.7039,2252895.8703,739703.9872,8649998.9029,7504430.6073,543637.1715,1630017.0446,9794359.6507,7792633.5839,4601226.5558,5949710.9522,12062378.8099,9651157.1508,5566230.8338,91256882.0033,1913438.2164,3379380.4192,3222205.0226,564287.2333,7719881.434,1593320.6951,2410069.6686,4093280.5694,1371376.9996,6043900.9365,2987388.6637,1628833.10026,3468653.7284,13162185.5189,20320169.9063,3547204.5474,9028303.48524,1765863.7481,9741329.1689,2840179.128,1927844.6675,2149060.18422,6433978.5498,5464632.0282,7475141.4255,25716842.919,71143913.3404,6406973.4709,7197795.1028,1718180.44688,4384470.8721625,22671187.1508,5988841.10927,10965.7002,4277453.4533,4469093.2757,7455117.1104,10984195.442512,9055005.868825,8127698.9543,581597.7891,8897977.68102,970402.515,4912090.76312,14422247.2905,737139.31058,11200.89334,281594021.5693,4182249.1128,2231692.60312,5075923.139,6374100.378,1854359.79476,1792689.8203,174273.177,0,46773893.19768,257144.6757,85486219.6288,10754402.312936,1326272.1199,14824611.5448,32742297.6017,60994389.2401575,4872903.2666,13723525.4495,8972496.0659,94879637.1861,4923770.7481,4852940.3497,6347636.415,1320355.92292,5343252.35518,0,1503185.1098,872978.4002,1112038.5591,5271859.1274,1206658.11148,4615260.00052,2533922.1713,1888702.4075,1058352.5207,12342784.3942,7780678.75184,33332876.8579,17605623.94076,6849152.3496,3211489.6572,7550493.11688,2693126.5262,21316620.0841725,5264645.6193,2288084.0801,2771433.1312,88144271.4217,3935824.94732,1136746.90534,31486907.0171,4088066.11247,1308080.32558,344101.4514,7723078.15614,7080276.2281,1090133.3945,4782474.7159,6331056.2948,22484613.2684,4790258.9833,7148308.6024,301997.485425,171351359.3571,41703374.3632,5409840.29,2341424.5212,14386014.2989175,4854937.41734,10526440.8297,5408202.7673,7364590.57236,7895338.9305,13930807.6726,12817875.2242,1321389.4097,10671758.8519,486142.29654,10186560.4054,3277284.14308,13114387.484,12164091.9869,1022684.449,8010635.2702875,9415713.81282,12230233.4515,1361138.2992,7736239.5235875,26070826.9481,11816,69694637.5589,14646743.793979,8207271.165,746605.77944,1013328.774,6168850.6648,3822206.4802,3725056.0028,18322217.833165,3867911.1828,20578461.974,9483705.77246,5079377.2655,37597070.0321,792793.7653,1234410.0449875,100408743.8067,949409.1513,5145414.18048,143534129.8291,1617901.08,21209966.7252,12929143.4683,19158000.26282,757874.43036,10049277.2674,233650038.0337,64079833.327,2800783.3288,4379900.9851335,8777300.0295,5657341.7815,7091173.0547,5572359.6143,758225.8393,2603143.598,3594839.8735,33567425.6584,8408074.123,36284976.6183,1600539.4908,3606220.074,4332995.632635,2535758.08338,8722265.89564,67162564.3197,9224890.3801,3151142.328,5058242.8474,3829307.85134,4097485.1447,27096014.9807,148431504.8612,3612448.66529,1069916.7521,6992779.9007,1127073.17498,3127834.3118,50270068.09634,5135224.06798,14560683.4426,9038133.5356,6138064.7952,90217952.44236,9123871.0645,31918075.8488,9449374.5983,20576957.919983,35832378.7379,51557073.2384,6628408.39828,359697112.2601,1621341.5262,18365633.6424,8907931.8158,1648989.8343,700048.131,6206736.6876,3098346.2822,17254224.3611,66343442.78536,3209763.5793,4931603.067,2742703.8986,1080346.2845,2960114.5699,1029642.9944,1269880.2535,1337305.1088,16062340.9409,1267981.4533,6174981.1127,2339427.8389,16136241.127,2561845.3633,1546268.4552,9033574.0328,2257851.3373,4794794.2224,4545297.1183,13201689.899,2457614.66074,4053715.494,2556047.1097,4795973.2552,6449735.4564,4741385.2931,2473961.02286,3065240.0856,5457413.0682,4014717.3994,320548.17014,4861982.471595,1131790.976,7972811.0026,3769208.6676,32672888.4633,9310589.7194035,6676062.300872,5451863.6564,9474165.9897,15080877.3063,484819.6686,12356315.8152,6081516.8521095,7294993.0307575,93393400.63906,6867897.45174,42434777.9128,4623376.6684,18638801.966,3631473.7143,67072938.5464125,40553925.2623,3897568.5945,3940567.2485,10366115.9458,21585752.60092,5148679.5117,1565683.9744,36738328.5734,3375643.3515,5952227.4923,6485848.4873,10821004.6281],[82509.5719999997,42059.0741999997,9409.02559999994,38545.0672999998,71447.5781000005,54944.0011,38415.7169999997,23176.7418,15354.075,95607.6984999999,159424.592399999,345089.867600001,43624.8461000002,349238.041999999,163462.107099999,3247647.67690003,11134.8683999998,27212.7042999999,30608.77,54075.0163000003,7730.70600000001,54718.3728,78016.6197999995,12952.72,47486.2314999998,9634.10440000007,502036.286299996,22479.5394000001,21574.8936999999,90273.8594000004,81586.4413000001,66681.6900000004,34274.7528000004,13122.3890000002,43997.6032999996,232013.7053,62313.4142000005,138377.5099,459876.451700002,75817.4789000005,50056.1723999996,77801.4160000011,278399.722100001,3001.46860000002,61696.1429000003,67550.5830000006,73115.2372999992,854117.9102,101710.492900001,50652.7206000006,16786.0163,68573.0201000003,540573.847900003,50904.6693000002,63433.6261999998,260812.220600002,53324.4161,16968.3006,46994.0236999998,481971.1514,696284.726600006,24403.0101999999,203921.0253,67982.085,449838.560800001,13690.9924000001,59843.3771000002,92487.4384000003,23538.8851000001,13372.058,32789.7837,140597.564200001,41068.6762999999,0,529479.710500002,79272.9452000009,80066.0674999999,277657.277599998,69568.5347000007,15211.5556999999,14511.0759999999,3949.93920000002,43615.0756000001,43388.9412000002,21653.2301999999,32278.5408000001,270032.932999998,24163.5840000003,66852.4140999997,348274.386999995,13320.9535999999,84593.6831,149713.176800001,46021.6418000003,11333.5926000001,34763.8921999997,110844.4792,86797.9918999998,2705.783,30003.0446000001,21753.0542000001,192564.612799998,68783.9226000002,54218.8119999999,94201.7624999993,196225.840500001,242738.0319,144487.8004,17632.5072000001,5582.21739999996,8784.43839999998,108366.7292,700417.700299993,78761.9048999995,7307.04130000004,109655.1719,73936.5485999994,181922.4528,17496.7640000002,0,771960.926899999,715671.035300002,83972.4091999996,43665.7143999999,660397.524899997,9520.96710000001,11795.3809999998,1109159.0244,14404.8957,50448.2798999995,10833.9682,112840.6425,50803.25,4939.9143,10876.0520000001,165622.4475,346062.809899997,611152.265799999,261785.347899999,50315.2581999991,55755.6491,21817.3449999997,27797.3722999999,19955.1167000001,170909.923799999,489218.0779,60554.301,2465,80467.8768999996,272170.2949,33377.5367999999,37066.2313999999,26257.4790000003,25799.5334000001,63069.7538999999,7662.23700000008,134801.8061,28401.4859000002,48359.5760000004,64105.5797000006,29839.0353000001,29225.8223000001,41868.4701999999,355794.026900001,9794.65970000008,14678.2024000001,60740.1262999997,3778.50050000002,23074.1617000001,99483.7041999996,21578.8032,37397.2703999998,20058.9402000001,350366.871300001,89407.4156999998,62927.9848999996,17672.5517000002,43269.5710000005,33550.7703999998,12743.8538000002,170879.9914,30812.895,171098.298099998,207633.8081,36020.1884999997,120992.317000002,30804.3352000001,37280.8657,97964.0976,240271.977399997,93819.5961000007,64152.3344000001,562795.964400001,9792.05299999996,204843.8116,102594.0692,236979.289500002,7647.33869999996,86027.3032999998,27877.9567999998,297561.5788,39043.6606000001,13207.2569000002,106219.261,9831.28980000003,62048.9213000005,9859.37399999995,154366.015400002,42542.2576000001,9731.22899999993,199160.464600001,6528.21240000008,40906.0301999999,62939.6777000008,74661.2964999992,68065.4289000006,51051.3328,64941.9744999995,19814.9102999996,7370.2672,89768.6129000001,79888.3772999998,5234.1838,17343.5845999999,101774.580699999,86073.6939000003,47680.9758000001,62991.7322000004,119731.129899999,96241.0708000008,60159.4538000003,943837.673299998,17896.9864000001,34867.4992,33275.7626,5585.90330000001,79956.034,15737.9293,25684.8086000001,44559.8794,13657.0396,65773.7864999995,28675.2936999998,15933.7479999999,34080.3728999998,142990.128899999,220002.526300002,36772.0573999998,96115.7993000001,17218.7620000001,105463.528899999,30296.8280000002,20817.4175,23155.0948999999,69215.8197999997,58037.4581999993,76140.3755000001,269545.019000001,735608.300399989,66288.3809000002,78585.0728000002,16715.5004999998,45547.1456000004,244553.070800003,66051.7419999996,0,42679.1233000001,46986.7056999998,81340.3203999996,119765.771299999,93781.2415999994,87883.2743000006,5512.87910000002,87801.6179999989,9696.01500000001,48342.9239999996,153512.990499999,7697.88470000005,0,2841343.63929999,44731.8328000004,21958.9148999997,50445.2710000006,63083.3300000001,18265.9258999999,17835.7903,1725.47700000001,0,461125.581200004,2540.10569999999,861698.748800009,111842.5569,13054.0123000001,155282.0648,339389.431699999,665719.138899997,50102.6065999996,147593.749500001,96834.7259,991390.576100007,53678.9381000008,51105.8797000004,68555.165,12862.6248999997,56932.7530000005,0,14931.1298,8684.38020000001,11005.1490999998,54676.3873999994,11768.1064000002,45093.9110000003,25251.0413000002,18506.5488,10538.4506999999,128593.974200001,76839.7864000006,342443.067900002,182251.444600001,73445.3896000003,33312.9371999996,74336.4381999997,28359.9062000001,219295.713,52470.6893000007,22762.0701000001,27028.2958,914231.251699999,38606.8730000001,11285.3371000001,324980.307099998,40985.9907,12936.3543,3431.31140000001,76400.2681999998,77443.4181000004,10917.9445,50798.6259000003,68450.8147999998,228314.428399999,51014.1533000004,76233.8624,2948.60190000001,1775697.6471,452482.543200001,53455.6174999997,23074.7303999998,149295.547999999,53152.6756000007,103584.2245,51919.2281999998,77461.1468000002,82786.8805,147715.412599999,134751.253799999,13191.4397,113383.411900001,4747.34399999998,105016.865400001,32547.4819,143222.333999999,134676.7969,9986.049,83323.4289999995,100900.429400001,133224.0515,13536.3792000001,75877.8747999994,285250.888100002,102,721214.668899998,150721.4684,79902.3577000005,7218.36200000008,10097.374,62117.1847999999,37576.7102000001,38730.4728000001,178213.9529,40503.4028000003,216888.574000001,101441.4581,54235.2154999999,380162.822099999,7883.23529999994,12170.1131,1041692.1367,9421.02130000002,50538.2760000005,1493120.91910002,15868.412,227494.205200002,133744.499599999,198352.9111,7546.70029999991,106517.7774,2414963.66369998,645417.626999997,29003.4487999999,47716.3679999998,93015.8295000009,60668.1314999992,72982.5847000005,60073.9342999998,7533.90929999994,25859.7980000004,35764.9455000004,360265.568399999,87045.8229999999,392184.0383,15920.4108,34747.5060000001,45438.4441999998,24858.818,85630.5754000004,690506.349700004,100270.370100001,30791.818,55745.6074000001,37100.8619999997,33723.0146999997,278048.910700001,1525889.7412,39779.8194999998,10662.5421000002,69212.0811000001,11024.2536000002,33141.1317999996,519349.414100006,54661.0427999999,151475.182600001,97745.2255999986,63353.2752,980939.832900003,91010.6145000011,330579.968800001,98839.2683000006,180232.736199997,364721.947900005,552505.148399994,65240.4910000004,3891396.25010002,16072.6370999999,198945.152400002,97687.4857999999,16139.5707999999,6986.03100000008,60166.4396000002,31829.0621999996,187254.2511,671306.472900003,31319.4900000002,49082.3669999996,27337.3627999998,10753.8345000001,31843.8298999998,10235.5544,12627.4235,13332.2288000002,174277.1009,12674.1232999999,67609.8427000009,23300.9488999997,175336.677000001,27134.0333000002,15387.9351999999,97429.7528000008,23658.6072999998,47106.3903999999,45135.1458999999,126102.999,24186.0899999999,39528.1940000001,27544.8896999997,49463.7352,68492.8163999999,46660.5530000003,24136.5384,33321.7755999998,53721.29,39467.1980000003,3111.51149999996,49771.2764999997,11251.3759999999,83236.7426000005,40811.4076,336843.133300003,97705.0429000016,68831.5959000001,58557.0164000001,100229.0197,162485.676299999,4819.80859999999,128013.2952,63359.8432,75876.0730999997,942046.837799996,73568.6402000003,430891.632799998,48829.0784,190452.365999997,38104.2842999999,703191.846900001,428394.032299995,42128.3944999999,42382.8985000001,110907.865800001,225544.0847,50772.9618000006,15604.5344,381561.483399995,33950.2015,64693.2622999996,63775.6813000003,118225.5681],[0.0108708520308797,0.0098620807223668,0.0100484425671928,0.00960317638773724,0.0106136500722497,0.010832229314347,0.00994613433990835,0.00990572768485553,0.010081384755542,0.0105011708604089,0.0110476338399384,0.0107210793884844,0.0109537821303403,0.0105532653824617,0.0104816360618305,0.0103852514534924,0.0100588088184391,0.0100586418576087,0.0109876227227856,0.0100818724235382,0.010076419993754,0.00992534357985156,0.00949825676725442,0.0100238444407512,0.00982121704561767,0.0100598110580372,0.0105503862121808,0.0100375367808693,0.0104370231708183,0.0107173169177984,0.0110247815197435,0.0108005996707667,0.0100162670938899,0.0100131833454742,0.00991456526151828,0.0104779042063009,0.0108923683871866,0.011141122737211,0.0109936515295772,0.011022488668659,0.0104467714572169,0.00990726372368436,0.0109165254749536,0.00990352159225493,0.0110802788932927,0.0106831562461931,0.0107739566714142,0.0102419592652109,0.0109723125170581,0.0100500870227299,0.0100641886686879,0.0109063475882943,0.0104245894230186,0.0111480860090884,0.0109658578405395,0.0107368065071547,0.0108608771719426,0.0104280138984378,0.0107226600081766,0.0111010256647896,0.0104907276186063,0.010482298050728,0.0110365935204071,0.0109576844147476,0.0110148422479494,0.0105625357703779,0.0107191303967127,0.0105202521976653,0.0100387366882297,0.010050145287553,0.010397087258399,0.0106377647150524,0.0108279866986696,0,0.0104361004515663,0.0105096005737587,0.0110415421711404,0.0104650325227875,0.0105016080146677,0.0105486249609295,0.010040095743667,0.0100434034266892,0.0106426993346679,0.0102044634918614,0.0106378019867093,0.00937435700085198,0.0107488944030537,0.00968204250257478,0.00991256464476963,0.0103495068260758,0.0104644340331477,0.00989676874985692,0.00980269022665756,0.0101396163463803,0.00995272097075691,0.0108595702643176,0.0108952538310552,0.010710915406272,0.0101024514037224,0.00991837839089801,0.0100294677134673,0.0108401597725728,0.0100046590363126,0.0107118096159544,0.0105808957875336,0.0104511847105392,0.0104537444997258,0.0108108526682074,0.00994640821596174,0.0100357042860999,0.0100565423312365,0.010798415300818,0.010446636385175,0.00986870301291935,0.00988155339617586,0.0100491513694129,0.0108173532713785,0.0109707130457809,0.00985167705249954,null,0.0104613497998345,0.0102305741968556,0.0109367744608538,0.0110001432930067,0.0102307426550886,0.01005689171933,0.0100278418332726,0.0103798895426726,0.010425565925058,0.0105433908252514,0.0100904172588851,0.0110795050109093,0.00987666696973989,0.0100951494560694,0.0100208764621443,0.0110597530186371,0.0109556874441628,0.0109513906756236,0.0103970484901862,0.0110233639630108,0.0110401154741229,0.0104515003584457,0.0100608267039639,0.0101491001147409,0.0108843583296589,0.0105560250894115,0.010806264032869,0.0105825784570472,0.0111130862755991,0.0103460877989286,0.00998016545261943,0.0107355386343891,0.00985543584250927,0.010118530135022,0.0108213555898642,0.0100303571898433,0.0111121891026627,0.0110095671272828,0.00992060834327366,0.0107541388020596,0.0105417351691106,0.0107180093296237,0.0107576721352676,0.0102794734530128,0.0100693001640536,0.0100991183353206,0.0100488030504145,0.010038789548236,0.00779711018298717,0.0108792695305416,0.0106988806709028,0.0105009656132043,0.0100492545568448,0.0105281752355508,0.0109050215943781,0.0109896627865837,0.0109132928099622,0.0098291618568799,0.0104698302557128,0.0105627829797798,0.0105085865900266,0.0109289632701096,0.00990894641727963,0.010772606183472,0.00995423326581452,0.00966729550186871,0.0106226313615771,0.0107909490828039,0.0110210091845165,0.0100389483265022,0.0109425823820183,0.00957206985464644,0.0103195589493615,0.00997062387747302,0.0104220141433309,0.0104265551083545,0.0110885148475112,0.010065521046912,0.0109742542367265,0.0100778524162272,0.0105291562970396,0.0102732631770678,0.0106805018054526,0.0111200474000814,0.0098997722317457,0.011023275792989,0.010055132015887,0.0103997432492651,0.0100539371959951,0.010111955237856,0.0108761475195596,0.0100344153261855,0.0104700974432228,0.0104864870640395,0.0107261838712113,0.011020719703707,0.0110336111048596,0.00985637617354084,0.00887335061062884,0.0100640828064014,0.0104867053640913,0.0107600407978284,0.00972168416516385,0.0107545544899089,0.0105002514772872,0.0111688866535235,0.0104711756942598,0.0107006517290628,0.0100255096782692,0.0100724140321283,0.0109260214131115,0.0104507347781485,0.00944162338267897,0.0104252846480258,0.0104347760288668,0.00999801324976263,0.0104655516662506,0.00997597694471464,0.0107720901230685,0.0110059158958678,0.0100588044680436,0.0110024067487423,0.00969181198515347,0.00987894748526837,0.00992273839352558,0.0109830234985051,0.0109453081728517,0.0104750789268133,0.010760611249951,0.00984691697678617,0.0109448940904908,0.0107822409500925,0.0109161615283683,0.0108918761314064,0.0108748468303075,0.0107345682108358,0.0102906290978294,0.0105922844955574,0.0104477490259434,0.010454450892782,0.0110384540516218,0.00982418152990068,0.0104973372362286,0.0109045820218779,0.0111521342232781,0,0.0100782521036959,0.0106254123360034,0.0110310255811255,0.0110236593106538,0.0104652260713434,0.0109310061073441,0.00956955998031613,0.00996593227785073,0.0100925881109371,0.0099394388029677,0.0107586971116281,0.010553122467254,0,0.0101930631138672,0.0108112739531569,0.00993735807036921,0.0100379053146794,0.00999574704365465,0.00994825276081387,0.0100491589722452,0.0100000000000001,null,0.00995677012910617,0.00997666970392552,0.0101826130279889,0.0105089902677378,0.00994047540500123,0.0105854916553418,0.0104740423272939,0.0110348717746079,0.0103886953104961,0.0108717215703141,0.010910142037934,0.0105592618021521,0.0110221614282054,0.0106429907193366,0.0109180248304639,0.00983762205089555,0.0107698280248743,null,0.0100326489971826,0.0100479466466747,0.00999529078776983,0.0104800598569793,0.00984869431493175,0.00986701798505894,0.0100655047997464,0.00989551373130735,0.0100575579215117,0.0105282437704128,0.0099742202225033,0.0103800716922917,0.01046017036255,0.0108395168258576,0.0104817762304922,0.00994313540966676,0.010642547826571,0.0103944798469159,0.0100669471007184,0.010048050563902,0.00984850902875652,0.0104806927741668,0.00990626448501638,0.0100272967273757,0.0104287616784526,0.0101272990568011,0.00998835232751376,0.0100722399679643,0.00999130201632985,0.0110588700603293,0.0101165568932505,0.0107358629233643,0.0109300857316658,0.0102584185286757,0.0107641945351872,0.0107795611899882,0.00985993281514295,0.0104714180631458,0.0109690366253032,0.00997979435167232,0.00995308408229342,0.0104866543065183,0.0110693582613076,0.00993817994659179,0.00969314410280894,0.0106298574207151,0.0105966501048783,0.0107171460375902,0.0106244529434927,0.0100836723512115,0.0107387175749076,0.00986164058212787,0.0104167447160578,0.0100308546728608,0.0110415935919218,0.0111956229602879,0.0098608322082863,0.0105109311539921,0.0108322545226295,0.0110129741240013,0.010044790675276,0.00990526012724341,0.0110624206120607,0.00870752945193785,0.0104564140603868,0.0103974362769878,0.00983127006962355,0.00976262488343716,0.0100648504422808,0.0101719167871724,0.00992876780124257,0.0105065253963071,0.00982219547989851,0.0105824634133968,0.0106518572872174,0.0108120443744843,0.0107927726142587,0.0102147881325789,0.010043482662922,0.00995722098623116,0.0104832750815581,0.0100224896456937,0.00991943217999902,0.0105119002642827,0.00990517379387173,0.0108421066670365,0.010452546257226,0.010461846015401,0.0100578720439886,0.0107131000711755,0.0104437601876772,0.0101745656498574,0.0104638355337221,0.0110143893247958,0.010710822833274,0.0108400337940018,0.0103990601298116,0.0108981895691589,0.0100359534969291,0.0100337409485135,0.0100489442407155,0.0108490327815925,0.0104609454338714,0.0109265401243405,0.0100468377548502,0.00972918182581993,0.0105977465029651,0.00990036451989556,0.00991480735551318,0.0103879189359782,0.0109889913212946,0.0098680638285088,0.0111435558533162,0.00978344855760545,0.00829847161846545,0.0103680088927788,0.0103868714613364,0.0111344827122379,0.0100660842310933,0.00999659177224593,0.00987793042832623,0.0107090202072955,0.0104390334020522,0.0107588553727396,0.0105123876251061,0.0109329955490489,0.0104290179033884,0.0109925220961063,0.0100755032144885,0.0104655326289828,0.0105704395322573,0.00883635655116325,0.0102832264916592,0.010832464014303,0.00994039645513782,0.0109368570402355,0.0100124267087809,0.0109510961510411,0.0110879428697978,0.00988429322686628,0.0100799495456469,0.00978861985992553,0.0103795478441825,0.0109717336992512,0.0102220897719241,0.00985371745422076,0.0100526695155639,0.0100676510664685,0.0100541421174019,0.0108746194349501,0.0100406903053405,0.0100436628168099,0.0100698654794199,0.0109690584488487,0.0100964305689188,0.0110702034821605,0.0100603075766716,0.0109853847912736,0.0107049796869769,0.0100516892069408,0.010902884929696,0.0105893314315815,0.00992196455767312,0.0100296714155666,0.00964415593459899,0.00993910003803601,0.00984712247981058,0.0108937573722991,0.0104210757381985,0.0107334605913058,0.00993893264954367,0.00985235413928857,0.0109903276384778,0.00994159034324029,0.00992822992276079,0.00980199172121667,0.0103427041088161,0.0100410338019289,0.0105502198036223,0.0109460995580712,0.010416955130487,0.0106052606030322,0.010417616543676,0.0108573497315554,0.0106923078340263,0.0108916349918881,0.0100412708453706,0.0104686071505532,0.0105281140233131,0.0105104368782273,0.01018964892418,0.0108279481668661,0.0102583753781175,0.0106740781332652,0.0103235449310868,0.0106040542288467,0.0105950660032452,0.010676345438131,0.0109269998533501,0.010872471564871,0.0108147845401886,0.0105590769176589,0.00995957091465252,0.010066925602213,0.0104949233372552,0.0101595807801802,0.0109881759957087,0.00993070044930292,0.0110462495242801]],"container":"<table class=\"cell-border stripe\">\n  <thead>\n    <tr>\n      <th>District Name<\/th>\n      <th>number<\/th>\n      <th>type<\/th>\n      <th>group<\/th>\n      <th>revenue<\/th>\n      <th>revenue.1pct<\/th>\n      <th>Difference<\/th>\n      <th>Percent change<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"targets":7,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatPercentage(data, 2, 3, \",\", \".\", null);\n  }"},{"targets":4,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":5,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":6,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"className":"dt-center","targets":[1,2,3,4,5,6]},{"className":"dt-right","targets":7}],"scrollX":true,"order":[],"autoWidth":false,"orderClasses":false,"orderCellsTop":true}},"evals":["options.columnDefs.0.render","options.columnDefs.1.render","options.columnDefs.2.render","options.columnDefs.3.render"],"jsHooks":[]}</script>
+<p><br></p>
+<p>Let’s see what this looks like between types of schools (charter
+vs. public).</p>
+<p><br></p>
+<div id="htmlwidget-3486fa57794f697a2868" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3486fa57794f697a2868">{"x":{"filter":"top","vertical":false,"filterHTML":"<tr>\n  <td data-type=\"character\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"641974796.69932\" data-max=\"6730891009.05112\" data-scale=\"7\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"648349809.96522\" data-max=\"6801990255.29942\" data-scale=\"7\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"6375013.26590037\" data-max=\"71099246.2482977\" data-scale=\"9\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"0.009930317044652\" data-max=\"0.010563125469227\" data-scale=\"15\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n<\/tr>","data":[["School Districts","Charter Schools"],[6730891009.05112,641974796.69932],[6801990255.29942,648349809.96522],[71099246.2482977,6375013.26590037],[0.0105631254692268,0.00993031704465218]],"container":"<table class=\"cell-border stripe\">\n  <thead>\n    <tr>\n      <th>Definition<\/th>\n      <th>revenue<\/th>\n      <th>revenue.1pct<\/th>\n      <th>Difference<\/th>\n      <th>Percent change<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"targets":4,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatPercentage(data, 2, 3, \",\", \".\", null);\n  }"},{"targets":1,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":2,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":3,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"className":"dt-center","targets":[1,2,3,4]}],"scrollX":true,"order":[],"autoWidth":false,"orderClasses":false,"orderCellsTop":true}},"evals":["options.columnDefs.0.render","options.columnDefs.1.render","options.columnDefs.2.render","options.columnDefs.3.render"],"jsHooks":[]}</script>
+<p><br></p>
+<p>RUCA and etc…</p>
+<p><br></p>
+<div id="section-ruca" class="section level2">
+<h2>RUCA</h2>
+<div id="htmlwidget-71a9df86da2f780d7f93" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-71a9df86da2f780d7f93">{"x":{"filter":"top","vertical":false,"filterHTML":"<tr>\n  <td data-type=\"factor\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"width: 100%; display: none;\">\n      <select multiple=\"multiple\" style=\"width: 100%;\" data-options=\"[&quot;Entirely rural&quot;,&quot;Town/rural mix&quot;,&quot;Urban/town/rural mix&quot;,&quot;Entirely urban&quot;]\"><\/select>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"138190686.201137\" data-max=\"4696744706.78705\" data-scale=\"7\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"139648272.499537\" data-max=\"4745621218.90564\" data-scale=\"7\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"1457586.29839996\" data-max=\"48876512.1185961\" data-scale=\"9\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"0.010406465577736\" data-max=\"0.010719124480102\" data-scale=\"15\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n<\/tr>","data":[["Entirely rural","Town/rural mix","Urban/town/rural mix","Entirely urban"],[138190686.201137,1075199887.86674,1462730524.89552,4696744706.78705],[139648272.499537,1086660858.38674,1478409715.47272,4745621218.90564],[1457586.29839996,11460970.5199993,15679190.5771999,48876512.1185961],[0.0105476449858453,0.0106593858958993,0.0107191244801019,0.0104064655777366]],"container":"<table class=\"cell-border stripe\">\n  <thead>\n    <tr>\n      <th>Dem_Desc<\/th>\n      <th>revenue<\/th>\n      <th>revenue.1pct<\/th>\n      <th>Difference<\/th>\n      <th>Percent change<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"targets":4,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatPercentage(data, 2, 3, \",\", \".\", null);\n  }"},{"targets":1,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":2,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":3,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"className":"dt-center","targets":[1,2,3,4]}],"scrollX":true,"order":[],"autoWidth":false,"orderClasses":false,"orderCellsTop":true}},"evals":["options.columnDefs.0.render","options.columnDefs.1.render","options.columnDefs.2.render","options.columnDefs.3.render"],"jsHooks":[]}</script>
+<p><br></p>
+</div>
+<div id="section-planning-region" class="section level2">
+<h2>Planning Region</h2>
+<p><br></p>
+<div id="htmlwidget-198b3e048a3db0df7a06" style="width:100%;height:auto;" class="datatables html-widget"></div>
+<script type="application/json" data-for="htmlwidget-198b3e048a3db0df7a06">{"x":{"filter":"top","vertical":false,"filterHTML":"<tr>\n  <td data-type=\"factor\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"width: 100%; display: none;\">\n      <select multiple=\"multiple\" style=\"width: 100%;\" data-options=\"[&quot;Northwest&quot;,&quot;Northeast&quot;,&quot;Central&quot;,&quot;Seven County Mpls-St Paul&quot;,&quot;Southwest&quot;,&quot;Southeast&quot;]\"><\/select>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"365637342.497554\" data-max=\"4056563720.70248\" data-scale=\"7\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"369443997.066254\" data-max=\"4098645743.36988\" data-scale=\"7\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"3806654.56869966\" data-max=\"42082022.6674008\" data-scale=\"9\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n  <td data-type=\"number\" style=\"vertical-align: top;\">\n    <div class=\"form-group has-feedback\" style=\"margin-bottom: auto;\">\n      <input type=\"search\" placeholder=\"All\" class=\"form-control\" style=\"width: 100%;\"/>\n      <span class=\"glyphicon glyphicon-remove-circle form-control-feedback\"><\/span>\n    <\/div>\n    <div style=\"display: none;position: absolute;width: 200px;opacity: 1\">\n      <div data-min=\"0.010373810339188\" data-max=\"0.010739476732467\" data-scale=\"15\"><\/div>\n      <span style=\"float: left;\"><\/span>\n      <span style=\"float: right;\"><\/span>\n    <\/div>\n  <\/td>\n<\/tr>","data":[["Northwest","Northeast","Central","Seven County Mpls-St Paul","Southwest","Southeast"],[773030090.593136,365637342.497555,990037931.618738,4056563720.70248,536777728.208388,650818992.130149],[781260127.239837,369443997.066254,1000666243.37534,4098645743.36988,542542440.130988,657781514.082349],[8230036.64670038,3806654.56869966,10628311.7565998,42082022.6674008,5764711.92260015,6962521.95220006],[0.0106464635036206,0.010411011475736,0.010735257122141,0.0103738103391886,0.0107394767324664,0.0106980927667945]],"container":"<table class=\"cell-border stripe\">\n  <thead>\n    <tr>\n      <th>planning.region<\/th>\n      <th>revenue<\/th>\n      <th>revenue.1pct<\/th>\n      <th>Difference<\/th>\n      <th>Percent change<\/th>\n    <\/tr>\n  <\/thead>\n<\/table>","options":{"columnDefs":[{"targets":4,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatPercentage(data, 2, 3, \",\", \".\", null);\n  }"},{"targets":1,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":2,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"targets":3,"render":"function(data, type, row, meta) {\n    return type !== 'display' ? data : DTWidget.formatCurrency(data, \"$\", 2, 3, \",\", \".\", true, null);\n  }"},{"className":"dt-center","targets":[1,2,3,4]}],"scrollX":true,"order":[],"autoWidth":false,"orderClasses":false,"orderCellsTop":true}},"evals":["options.columnDefs.0.render","options.columnDefs.1.render","options.columnDefs.2.render","options.columnDefs.3.render"],"jsHooks":[]}</script>
+<p><br></p>
+</div>
+<div id="section-edr" class="section level2">
+<h2>EDR</h2>
+<p><br></p>
+<p><br></p>
+</div>
+</div>
+
+
+
+</div>
+</div>
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("section-TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open');
+  });
+});
+</script>
+
+<!-- code folding -->
+
+<script>
+$(document).ready(function ()  {
+
+    // temporarily add toc-ignore selector to headers for the consistency with Pandoc
+    $('.unlisted.unnumbered').addClass('toc-ignore')
+
+    // move toc-ignore selectors from section div to header
+    $('div.section.toc-ignore')
+        .removeClass('toc-ignore')
+        .children('h1,h2,h3,h4,h5').addClass('toc-ignore');
+
+    // establish options
+    var options = {
+      selectors: "h1,h2,h3,h4",
+      theme: "bootstrap3",
+      context: '.toc-content',
+      hashGenerator: function (text) {
+        return text.replace(/[.\\/?&!#<>]/g, '').replace(/\s/g, '_');
+      },
+      ignoreSelector: ".toc-ignore",
+      scrollTo: 0
+    };
+    options.showAndHide = true;
+    options.smoothScroll = true;
+
+    // tocify
+    var toc = $("#section-TOC").tocify(options).data("toc-tocify");
+});
+</script>
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

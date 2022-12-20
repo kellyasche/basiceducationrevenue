@@ -266,7 +266,7 @@ cexaid.1pct <- original %>%
                               ifelse(cexrto.1pct > 1.0, 1, cexrto.1pct)),
          cexlvy.1pct = round(ocexrev.1pct * cexrto.1pct),
          cexaid.1pct = ocexrev.1pct - cexlvy.1pct) %>%
-  select(`District Name`, number, type,  cexaid.1pct)
+  select(`District Name`, number, type, cexaid.1pct)
 
 tsparrev.1pct <- original %>%
   filter(group %in% c(1,4)) %>%
@@ -464,8 +464,8 @@ master.1pct <- bsrev.1pct %>%
   left_join(eqaid.1pct, by = c("District Name", "number", "type")) %>%
   left_join(hhaid.1pct, by = c("District Name", "number", "type")) %>%
   left_join(tsparrev.1pct, by = c("District Name", "number", "type")) %>%
-  left_join(optadjfa.1pct, by = c("District Name", "number", "type")) %>%
-  left_join(penrev.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(optadjfa.1pct, by = c("District Name", "number", "type" )) %>%
+  left_join(penrev.1pct, by = c("District Name", "number", "type" )) %>%
   select(1:8, 10:16, 18:20) %>%
   gather(key = "categories", value = "revenue.1pct", 4:18 ) %>%
   mutate(categories = str_sub(categories, 1, -6),
@@ -1354,6 +1354,51 @@ one.pct.bsrevonly.county.map <- ggplot(one.pct.bsrevonly.county) +
 girafe(ggobj = one.pct.bsrevonly.county.map, height_svg = 10, width_svg = 10) %>%
   girafe_options(opts_sizing(rescale = FALSE))
 
+```
+
+<br>
+
+# Driver of differences
+
+So it's clear that if only the basic education revenue allotment is increased, districts in more urban areas receive a larger bump. Why? 
+
+Let's compare the two scenarios and see what's providing the largest bump. The table below provides the following data;
+
+* Categories: the general education revenue component
+* revenue.1pct: the revenue of that component with a 1% increase across all components
+* revenuebsrevonly.1pct: the revenue of that category if only basic education revenue is increased by 1%
+* category.diff: the difference in revenue between each scenario for each category
+* total.1pct: The total revenue received for a 1% increase to all components
+* total.bsrevonly.1pct: The total revenue received for a 1% increase to the basic education revenue only
+* diff.total.rev: The difference in total revenues between each scenario
+* pct.of.diff: how much the difference between the two total revenues is made up by that particular category.
+
+<br>
+
+```{r compared scenarios difference}
+one.pct.comp.district <- master.1pct %>%
+  filter(`District Name` != "Minnesota State Academies") %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(original[,c(2,595,609,1073)], by = c("District Name", "number", "type")) %>%
+  select(`District Name`, number, type, group, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  mutate(category.diff = revenue.1pct - revenue.bsrevonly.1pct) %>%
+  group_by(`District Name`, number, type, group) %>%
+  mutate(total.1pct = sum(revenue.1pct),
+         total.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(diff.total.rev = total.1pct - total.bsrevonly.1pct,
+         pct.of.difference = category.diff / diff.total.rev) %>%
+  group_by(`District Name`) %>%
+  arrange(desc(pct.of.difference)) %>%
+  mutate(`Category Rank` = seq(n())) %>%
+  ungroup()
+
+datatable(one.pct.comp.district, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:12)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(6:11, "$", digits = 0) %>%
+  formatPercentage(12, digits = 2)
+  
 ```
 
 <br>

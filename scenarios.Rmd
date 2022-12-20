@@ -393,8 +393,8 @@ eqrev3.1pct <- original %>%
   left_join(eqrev1.1pct, by = c("District Name", "number", "type")) %>%
   left_join(eqrev2.1pct, by = c("District Name", "number", "type")) %>%
   mutate(eqrev3.1pct = 0.0,
-         eqrev3.1pct = ifelse(eqgroup.label == "metroeq", (eqrev1.1pct + eqrev2.1pct) * 0.25, eqrev3),
-         eqrev3.1pct = ifelse(eqgroup.label == "ruraleq", (eqrev1.1pct + eqrev2.1pct) * 0.25, eqrev3)) %>%
+         eqrev3.1pct = ifelse(eqgroup.label == "metroeq", (eqrev1.1pct + eqrev2.1pct) * 0.25, eqrev3.1pct),
+         eqrev3.1pct = ifelse(eqgroup.label == "ruraleq", (eqrev1.1pct + eqrev2.1pct) * 0.25, eqrev3.1pct)) %>%
   select(`District Name`, number, type, eqrev3.1pct)
 
 eqrev4.1pct <- original %>%
@@ -469,6 +469,8 @@ master.1pct <- bsrev.1pct %>%
 
 
 <br>
+
+# 1% increase across all components - overview
 
 There are multiple ways in which legislators can change the general education revenue formula. However, it is typical that legislators will increase difference funding mechanisms by percentages. For example, the legislature can increase the basic education revenue by 1%. In FY22 that would mean the revenue would jump from `r filter(original, number == 6) %>% select(fa22)` to `r filter(original, number == 6) %>% select(fa22) %>% mutate(fa22.1pct = (fa22 * .01) + fa22) %>% select(fa22.1pct)`.
 
@@ -665,8 +667,13 @@ A 1% increase goes from $6728 to $6,795.
 
 <br>
 
-# A 1% increase{.tabsets}
-The following will provide the change in revenue if all components were increased by 1%. 
+## 1% increase across all components - analysis{.tabset}
+
+The following will provide the change in revenue if all components were increased by 1% as laid out in the previous section.
+
+The table below provides the total general education revenue for each district in FY22 as well as the total revenue if all components were increased by 1% and difference between FY22 and the 1% increase. 
+
+If you sort the districts by the highest change, it's interesting to see that most of the schools that experienced the largest increase in total revenue due to a 1% change in all components are outside of the seven county metro and rather rural.
 
 <br>
 
@@ -694,7 +701,7 @@ datatable(one.pct.total.districts, class = "cell-border stripe", filter = "top",
 
 <br>
 
-Let's see what this looks like between types of schools (charter vs. public).
+Let's see what this looks like between types of schools (charter vs. public). When broken down this way, public schools see a bit larger of a change 1.06% in total revenue increase overe FY22 compared to charter schools .99%.
 
 <br>
 
@@ -724,12 +731,17 @@ datatable(one.pct.total.group, class = "cell-border stripe", filter = "top", row
 
 <br>
 
-RUCA and etc...
+Now let's see what it looks like by RUCA categories as well as regions.
 
+Interestingly, the RUCA category table shows that the highest percentage change with the 1% increase occurs for schools located in urban/town/rural mix counties and town/rural mix counties (each 1.07%). Entirely rural schools receive a 1.05% increase and entirely urban receive 1.04%.
+
+The planning region table shows that schools in southern Minnesota and Central receive the highest increase with 1.07% followed by Northwest with 1.06% and Northeast and Seven County metro with 1.04%.
+
+The EDR table follows a similar pattern where EDRs located in Southern and Central Minnesota all have a change of 1.07%. The lowest is up in Northern Minnesota and seven county meetro.
 
 <br>
 
-## RUCA
+### RUCA
 
 ```{r 1% increase total ruca}
 
@@ -756,7 +768,7 @@ datatable(one.pct.total.ruca, class = "cell-border stripe", filter = "top", rown
 
 <br>
 
-## Planning Region
+### Planning Region
 
 <br>
 
@@ -785,8 +797,560 @@ datatable(one.pct.total.pr, class = "cell-border stripe", filter = "top", rownam
 
 <br>
 
-## EDR
+### EDR
 
 <br> 
 
+```{r 1% increase total edr}
+
+one.pct.total.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 9:22) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  drop_na(edr) %>%
+  group_by(edr) %>%
+  summarize(revenue = sum(revenue),
+            revenue.1pct = sum(revenue.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.1pct - revenue,
+         `Percent change` = (revenue.1pct - revenue) / revenue) 
+
+datatable(one.pct.total.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+```
+
 <br>
+
+## {.unnumbered .unlisted .toc-ignore} 
+
+Let's see what this looks like by county.
+
+The map pretty clearly shows that school districts located in southern and central Minnesota counties as well as extreme Northwest benefit the most from a 1% increase in all components of the general education revenue formula. 
+
+<br>
+
+```{r 1% increase total county}
+
+one.pct.total.county <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, countyfp, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 10:23) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  drop_na(edr) %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(revenue = sum(revenue),
+            revenue.1pct = sum(revenue.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.1pct - revenue,
+         `Percent change` = (revenue.1pct - revenue) / revenue) %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp")
+
+one.pct.total.county.map <- ggplot(one.pct.total.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = `Percent change`, data_id = countyfp, tooltip = paste(`County Name`, "\nTotal revenue in FY22: ", dollar(revenue), "\nTotal revenue with 1% increase: ", dollar(revenue.1pct), "\nChange in revenue: ", percent(`Percent change`), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
+  labs(title = "Percent change between FY22 revenue and 1% increase") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = one.pct.total.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+# 1% increase basic education revenue only - overview
+
+Since there are multiply components that rely on the alloted value of the basic education revenue component, let's see who benefits if only that piece is increased by 1%. The components that are linked to the basic education revenue component are;
+
+* Declining enrollment
+* Compensatory
+* Sparsity, 
+* Transportation sparsity, and
+* Options adjustment.
+
+So for this analysis the only change that will be made is a 1% increase in the basic education revenue - from $6,728 to $6,795.
+
+<br>
+
+## 1% increase basic education revenue only - analysis{.tabset}
+
+
+The table below provides the total general education revenue for each district in FY22 as well as the total revenue if all components were increased by 1% and difference between FY22 and the 1% increase. 
+
+If you sort the districts by the highest change, it's interesting to see that most of the schools that experienced the largest increase in total revenue due to a 1% change in only the basic education revenue allotment.
+
+<br>
+
+```{r 1% increase basic education revenue only scenario}
+bsrev.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.1pct = (fa22*.01) + fa22,
+         bsrev.bsrevonly.1pct = round(awadm22 * fa22.1pct)) %>%
+  select(`District Name`, number, type, bsrev.bsrevonly.1pct)
+
+exdayr.bsrevonly.1pct <- original %>%
+  mutate(exdayr.bsrevonly.1pct = exdayr) %>%
+  select(`District Name`, number, type, exdayr.bsrevonly.1pct)
+
+gtrev22.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(gtrev.bsrevonly.1pct = gtrev) %>%
+  select(`District Name`, number, type, gtrev.bsrevonly.1pct)
+
+smlrev.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(smlrev.bsrevonly.1pct = smlrev) %>%
+  select(`District Name`, number, type, smlrev.bsrevonly.1pct)
+
+decrev.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.bsrevonly.1pct = (fa22 * .01) + fa22,
+         decalo.bsrevonly.1pct = round(fa22.bsrevonly.1pct * 0.28),
+         declpu.bsrevonly.1pct = awadm21 - awadm22,
+         declpu.bsrevonly.1pct = ifelse(declpu.bsrevonly.1pct < 0, 0, declpu.bsrevonly.1pct),
+         decrev.bsrevonly.1pct = round(decalo.bsrevonly.1pct * declpu.bsrevonly.1pct),
+         decrev.bsrevonly.1pct = ifelse(awadm22 == 0, 0, decrev.bsrevonly.1pct)) %>%
+  select(`District Name`, number, type, decrev.bsrevonly.1pct)
+
+locaid.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(loctier1rev.bsrevonly.1pct = loctier1rev,
+         locaid.bsrevonly.1pct = locaid) %>%
+  select(`District Name`, number, type, loctier1rev.bsrevonly.1pct, locaid.bsrevonly.1pct)
+
+afdc22.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(afdc22.bsrevonly.1pct = (afdc22 * .01) + afdc22) %>%
+  select(`District Name`, number, type, afdc22.bsrevonly.1pct)
+
+totlep.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(totlep.bsrevonly.1pct = totlep) %>%
+  select(`District Name`, number, type, totlep.bsrevonly.1pct)
+
+totspar.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.1pct = (fa22*.01) + fa22,
+         fa22ss.1pct = fa22.1pct - 530,
+         sprevini.1pct = round(isoftr * admftr * sadmsv22 * fa22ss.1pct - 0),
+         mspar22.1pct = round(mspar22 * (fa22ss.1pct / fa22ss.1pct)),
+         hhspar22.1pct = round(hhspar22 * (fa22ss.1pct / fa22ss.1pct)),
+         sprev.1pct = sprevini.1pct,
+         sprev.1pct = ifelse(mspar22.1pct > sprevini.1pct, mspar22.1pct, sprev.1pct),
+         sprev.1pct = ifelse(hhspar22.1pct > sprevini.1pct, hhspar22.1pct, sprev.1pct),
+         espar22.1pct = espar22,
+         elmspar.1pct = round(espar22.1pct * (fa22ss.1pct / fa22ss.1pct)),
+         minspar.1pct = sprev.1pct + elmspar.1pct,
+         totspar.bsrevonly.1pct = minspar.1pct,
+         totspar.bsrevonly.1pct = ifelse(closedblg > 0 & srsrev21 > minspar.1pct, srsrev21, totspar.bsrevonly.1pct),
+         srsrev22.bsrevonly.1pct = totspar.bsrevonly.1pct) %>%
+  select(`District Name`, number, type,  totspar.bsrevonly.1pct)
+  
+
+cexaid.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(cexaid.bsrevonly.1pct = cexaid) %>%
+  select(`District Name`, number, type,  cexaid.bsrevonly.1pct)
+
+tsparrev.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.1pct = (fa22*.01) + fa22,
+         fa22ts.1pct = fa22.1pct,
+         tsparal.1pct = ((fa22ts.1pct * 0.141 * trsindex**0.26 * trdindex**0.13) -(fa22ts.1pct * trapct)),
+         tsparal.1pct = ifelse(tsparal.1pct < 0, 0, tsparal.1pct), #if less than zero, return zero
+         bastrans.1pct = round((fa22ts.1pct * trapct) * awadm22),
+         tsparrev1.1pct = round(tsparal.1pct * awadm22),
+         tsparrev2.1pct = 0,
+         tottrarev.1pct = tottrarev22) %>%
+  rowwise() %>%
+  mutate(transex.1pct = min(transex21, transex20 * 1.05)) %>%
+  ungroup() %>%
+  mutate(tsparrev2.1pct = (transex.1pct - tottrarev.1pct) * 0.182,
+         tsparrev2.1pct = ifelse(tsparrev2.1pct < 0, 0, tsparrev2.1pct),
+         tsparrev.bsrevonly.1pct = tsparrev1.1pct + tsparrev2.1pct,
+         tsparaln.bsrevonly.1pct = 0,
+         tsparaln.bsrevonly.1pct = ifelse(awadm22 > 0 & group==1, (tsparrev2.1pct / awadm22) + tsparal.1pct, tsparaln.bsrevonly.1pct)) %>%
+  select(`District Name`, number, type, tsparaln.bsrevonly.1pct, tsparrev.bsrevonly.1pct)
+
+hhaid.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(hhaid.bsrevonly.1pct = hhaid) %>%
+  select(`District Name`, number, type, hhaid.bsrevonly.1pct)
+
+refrev.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(refcap.1pct = max(altcap22, stdcap)) %>%
+  ungroup() %>%
+  mutate(fa22.1pct = (fa22 * .01) + fa22,
+         fa22ss.1pct = fa22.1pct - 530,
+         sprevini.1pct = round(isoftr * admftr * sadmsv22 * fa22ss.1pct - 0),
+         mspar22.1pct = round(mspar22 * (fa22ss.1pct / fa22ss.1pct)),
+         hhspar22.1pct = round(hhspar22 * (fa22ss.1pct / fa22ss.1pct)),
+         sprev.1pct = sprevini.1pct,
+         sprev.1pct = ifelse(mspar22.1pct > sprevini.1pct, mspar22.1pct, sprev.1pct),
+         sprev.1pct = ifelse(hhspar22.1pct > sprevini.1pct, hhspar22.1pct, sprev.1pct),
+         espar22.1pct = espar22,
+         elmspar.1pct = round(espar22.1pct * (fa22ss.1pct / fa22ss.1pct))) %>%
+  rowwise() %>%
+  mutate(refcap.1pct = max(altcap22, stdcap)) %>%
+  ungroup() %>%
+  mutate(refcap.1pct = ifelse(sprev.1pct + elmspar.1pct > 0, 99999999, refcap.1pct),
+         refalo22.1pct = refalo22t,
+         refalo22.1pct = ifelse(refalo22t > refcap.1pct, refcap.1pct, refalo22.1pct),
+         refrev22.bsrevonly.1pct = round(refalo22.1pct * awadm22)) %>%
+  select(`District Name`, number, type, refrev22.bsrevonly.1pct)
+
+
+ajgeppu.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(bsrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(refrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  mutate(ajgened.bsrevonly.1pct = bsrev.bsrevonly.1pct + refrev22.bsrevonly.1pct + hhrev + loctier1rev.bsrevonly.1pct, # add lor tier 1 beginning FY21
+         ajgeppu.bsrevonly.1pct = 0.0,
+         ajgeppu.bsrevonly.1pct = ifelse(awadm22 > 0 & group == 1, round((ajgened.bsrevonly.1pct / awadm22) * 100) / 100, ajgeppu.bsrevonly.1pct)) %>%
+  select(`District Name`, number, type, ajgeppu.bsrevonly.1pct)
+ 
+percentile.helper.bsrevonly <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(ajgeppu.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  mutate(rur5.bsrevonly.1pct = quantile(ajgeppu.bsrevonly.1pct[eqgroup.label == "ruraleq" & ajgeppu.bsrevonly.1pct > 0], .05, type = 1),
+         rur95.bsrevonly.1pct = quantile(ajgeppu.bsrevonly.1pct[eqgroup.label == "ruraleq" & ajgeppu.bsrevonly.1pct > 0], .95, type = 1),
+         metro5.bsrevonly.1pct = quantile(ajgeppu.bsrevonly.1pct[eqgroup.label == "metroeq"], .05, type = 1),
+         metro95.bsrevonly.1pct = quantile(ajgeppu.bsrevonly.1pct[eqgroup.label == "metroeq"], .95, type = 1),
+         ajgep5.bsrevonly.1pct = 0.0,
+         ajgep95.bsrevonly.1pct = 0.0,
+         ajgep5.bsrevonly.1pct = ifelse(eqgroup.label == "ruraleq", rur5.bsrevonly.1pct,
+                         ifelse(eqgroup.label == "metroeq", metro5.bsrevonly.1pct, ajgep5.bsrevonly.1pct)),
+         ajgep95.bsrevonly.1pct = ifelse(eqgroup.label == "ruraleq", rur95.bsrevonly.1pct,
+                          ifelse(eqgroup.label == "metroeq", metro95.bsrevonly.1pct, ajgep95.bsrevonly.1pct)),
+         seqgap.bsrevonly.1pct = ajgep95.bsrevonly.1pct - ajgep5.bsrevonly.1pct,
+         seqgap.bsrevonly.1pct = ifelse(seqgap.bsrevonly.1pct < 0, 0, seqgap.bsrevonly.1pct), # clip negatives
+         deqgap.bsrevonly.1pct = ajgep95.bsrevonly.1pct - ajgeppu.bsrevonly.1pct,
+         deqgap.bsrevonly.1pct = ifelse(deqgap.bsrevonly.1pct < 0, 0, deqgap.bsrevonly.1pct), # clip negatives
+         eqindx.bsrevonly.1pct = 0.0,
+         eqindx.bsrevonly.1pct = deqgap.bsrevonly.1pct / seqgap.bsrevonly.1pct) %>%
+  select(`District Name`, number, type, deqgap.bsrevonly.1pct, eqindx.bsrevonly.1pct) 
+
+refrev_ave.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(refrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  mutate(refrev_eq.bsrevonly.1pct = refrev22.bsrevonly.1pct,
+         refrev_eq.bsrevonly.1pct = ifelse(number == 3000, refrev_new, refrev_eq.bsrevonly.1pct),
+         refrev_sd.bsrevonly.1pct = sum(refrev_eq.bsrevonly.1pct[group %in% c(1,2)]),
+         loctier1_eq.bsrevonly.1pct = loctier1rev.bsrevonly.1pct,
+         loctier1_eq.bsrevonly.1pct = ifelse(number == 3000, 0, loctier1_eq.bsrevonly.1pct),
+         locrev_sd.bsrevonly.1pct = sum(loctier1_eq.bsrevonly.1pct[group %in% c(1,2)]),
+         awadm_sd.bsrevonly.1pct = sum(awadm22[group %in% c(1,2)]),
+         refrev_ave.bsrevonly.1pct = refrev_sd.bsrevonly.1pct / awadm_sd.bsrevonly.1pct,
+         loc_ave.bsrevonly.1pct = locrev_sd.bsrevonly.1pct / awadm_sd.bsrevonly.1pct) %>%
+  select(`District Name`, number, type, refrev_ave.bsrevonly.1pct, loc_ave.bsrevonly.1pct)
+
+eqrev1.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(percentile.helper.bsrevonly, by = c("District Name", "number", "type")) %>%
+  mutate(sldalo.bsrevonly.1pct = 80,
+         eqrev1.bsrevonly.1pct = round(awadm22 * (14 + (sldalo.bsrevonly.1pct * eqindx.bsrevonly.1pct))),
+         eqrev1.bsrevonly.1pct = ifelse(dist==1 & type==3 | number==625 | number==709 | deqgap.bsrevonly.1pct==0, 0, eqrev1.bsrevonly.1pct),
+         eqrev1_p.bsrevonly.1pct = 0.0,
+         eqrev1_p.bsrevonly.1pct = ifelse(group==1 & awadm22 > 0, round(eqrev1.bsrevonly.1pct / awadm22), eqrev1_p.bsrevonly.1pct)) %>%
+  select(`District Name`, number, type, eqrev1.bsrevonly.1pct)
+
+eqrev2.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(refrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(refrev_ave.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(percentile.helper.bsrevonly, by = c("District Name", "number", "type")) %>%
+  mutate(sst22.bsrevonly.1pct = 100000,
+         refrev_p.bsrevonly.1pct = 0.0,
+         refrev_p.bsrevonly.1pct = ifelse(awadm22 > 0,  (refrev22.bsrevonly.1pct + loctier1rev.bsrevonly.1pct) / awadm22, refrev_p.bsrevonly.1pct),
+         eqrev2.bsrevonly.1pct = 0.0,
+         eqrev2.bsrevonly.1pct = ifelse(refrev_p.bsrevonly.1pct < ((refrev_ave.bsrevonly.1pct + loc_ave.bsrevonly.1pct) * 0.1), (((refrev_ave.bsrevonly.1pct + loc_ave.bsrevonly.1pct) * 0.1) - refrev_p.bsrevonly.1pct) * awadm22, eqrev2.bsrevonly.1pct),
+         eqrev2.bsrevonly.1pct = ifelse(eqrev2.bsrevonly.1pct > sst22.bsrevonly.1pct, sst22.bsrevonly.1pct, eqrev2.bsrevonly.1pct),
+         eqrev2.bsrevonly.1pct = ifelse(dist==1 & type==3 | number==625 | number==709 |deqgap.bsrevonly.1pct==0, 0, eqrev2.bsrevonly.1pct)) %>%
+  select(`District Name`, number, type, eqrev2, eqrev2.bsrevonly.1pct)
+
+eqrev3.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(eqrev1.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev2.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  mutate(eqrev3.bsrevonly.1pct = 0.0,
+         eqrev3.bsrevonly.1pct = ifelse(eqgroup.label == "metroeq", (eqrev1.bsrevonly.1pct + eqrev2.bsrevonly.1pct) * 0.25, eqrev3.bsrevonly.1pct),
+         eqrev3.bsrevonly.1pct = ifelse(eqgroup.label == "ruraleq", (eqrev1.bsrevonly.1pct + eqrev2.bsrevonly.1pct) * 0.25, eqrev3.bsrevonly.1pct)) %>%
+  select(`District Name`, number, type, eqrev3.bsrevonly.1pct)
+
+eqrev4.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(percentile.helper.bsrevonly, by = c("District Name", "number", "type")) %>%
+  mutate(eqblw95.bsrevonly.1pct = 50,
+         eqabv95.bsrevonly.1pct = 50,
+         eqrev4.bsrevonly.1pct = round(awadm22 * eqblw95.bsrevonly.1pct),
+         eqrev4.bsrevonly.1pct = ifelse(deqgap.bsrevonly.1pct == 0,round(awadm22 * eqabv95.bsrevonly.1pct), eqrev4.bsrevonly.1pct)) %>%
+  select(`District Name`, number, type, eqrev4.bsrevonly.1pct)
+
+eqrev.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(eqrev1.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev2.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev3.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev4.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  mutate(eqrev.bsrevonly.1pct = eqrev1.bsrevonly.1pct + eqrev2.bsrevonly.1pct + eqrev3.bsrevonly.1pct + eqrev4.bsrevonly.1pct) %>%
+  select(`District Name`, number, type, eqrev.bsrevonly.1pct)
+
+eqaid.bsrevonly.1pct <- original %>%
+  left_join(eqrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  mutate(eq_eq_factor.bsrevonly.1pct = 510000,
+         eqlvy.bsrevonly.1pct = 0.0,
+         eqlvy.bsrevonly.1pct = ifelse(wadm22 > 0 & group == 1, round(eqrev.bsrevonly.1pct * ((rmkv19 / wadm22) / eq_eq_factor.bsrevonly.1pct)), eqlvy.bsrevonly.1pct),
+         eqlvy.bsrevonly.1pct = ifelse(eqlvy.bsrevonly.1pct > eqrev.bsrevonly.1pct, eqrev.bsrevonly.1pct, eqlvy.bsrevonly.1pct),
+         eqaid.bsrevonly.1pct = eqrev.bsrevonly.1pct - eqlvy.bsrevonly.1pct) %>%
+  select(`District Name`, number, type, eqaid.bsrevonly.1pct)
+
+penrev.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(penrev.bsrevonly.1pct = penrev) %>%
+  select(`District Name`, number,  type, penrev.bsrevonly.1pct)
+
+optadjfa.bsrevonly.1pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(tsparrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  mutate(fa22.1pct = (fa22*.01) + fa22,
+         optadjin.bsrevonly.1pct = 0.0,
+         optadjin.bsrevonly.1pct = 0.0,
+         optbasch.bsrevonly.1pct = round((clwadm22 + mclwadm22) * fa22.1pct * trapct),
+         optsrsch.bsrevonly.1pct = round((clwadm22 + mclwadm22) * tsparaln.bsrevonly.1pct),
+         optextch.bsrevonly.1pct = 0.0,
+         optadjch.bsrevonly.1pct = optbasch.bsrevonly.1pct + optextch.bsrevonly.1pct + optsrsch.bsrevonly.1pct,
+         optadjfa.bsrevonly.1pct = round(cfwadm22 * -fa22.1pct),
+         optadjfa.bsrevonly.1pct = ifelse(type == 70, round(0 * fa22.1pct / fa22.1pct), optadjfa.bsrevonly.1pct),
+         optadjfa.bsrevonly.1pct = ifelse(type == 90, round(641313.36 * fa22.1pct / fa22.1pct), optadjfa.bsrevonly.1pct),
+         optadj.bsrevonly.1pct = optadjin.bsrevonly.1pct + optadjch.bsrevonly.1pct + optadjfa.bsrevonly.1pct) %>%
+  select(`District Name`, number, type, optadj.bsrevonly.1pct)
+
+master.bsrevonly.1pct <- bsrev.bsrevonly.1pct %>%
+  left_join(exdayr.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(gtrev22.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(smlrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(decrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(afdc22.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(totlep.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(totspar.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(cexaid.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqaid.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(hhaid.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(tsparrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(optadjfa.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  left_join(penrev.bsrevonly.1pct, by = c("District Name", "number", "type")) %>%
+  select(1:8, 10:16, 18:20) %>%
+  gather(key = "categories", value = "revenue.bsrevonly.1pct", 4:18 ) %>%
+  mutate(categories = str_sub(categories, 1, -16),
+         categories = trimws(categories, which = "both"),
+         revenue.bsrevonly.1pct = ifelse(is.na(revenue.bsrevonly.1pct), 0, revenue.bsrevonly.1pct))
+
+```
+
+```{r 1% increase bsrev only district}
+
+one.pct.bsrevonly.districts <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 9:22) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  group_by(`District Name`, number, type, group) %>%
+  summarize(revenue = sum(revenue),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.bsrevonly.1pct - revenue,
+         `Percent change` = (revenue.bsrevonly.1pct - revenue) / revenue)
+
+datatable(one.pct.bsrevonly.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(5:7, "$", digits = 2) %>%
+  formatPercentage(8, digits = 2)
+```
+
+
+<br>
+
+The table below shows that public schools see a slightly higher percent increase than charter schools - 94% vs. 91%.
+
+<br>
+
+```{r 1% increase bsrev only group}
+
+one.pct.bsrevonly.group <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 9:22) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  group_by(group) %>%
+  summarize(revenue = sum(revenue),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.bsrevonly.1pct - revenue,
+         `Percent change` = (revenue.bsrevonly.1pct - revenue) / revenue) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, revenue, revenue.bsrevonly.1pct, Difference, `Percent change`)
+
+datatable(one.pct.bsrevonly.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+```
+
+<br>
+
+The tables below provide a different story than the increases we see when all components are increased by 1%. 
+
+The RUCA table shows that schools located in entirely rural counties see the lowest bump in revenue if only basic education revenue allotment is increased - .91% compared to entirely urban which gets the highest bump of .94%.
+
+When broken down by planning region, the seven county metro sees the highest bump with a .94% increase compared to Southwest which receives .92% bump.
+
+Our most rural EDRs also experience the lowest bump - EDR 1, 6W and 8 all get a bump of .91%. The highest bumps got to the seven county metro and EDRs throughout central Minnesota.
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r 1% increase bsrev only ruca}
+
+one.pct.bsrevonly.ruca <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 9:22) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  drop_na(Dem_Desc) %>%
+  group_by(Dem_Desc) %>%
+  summarize(revenue = sum(revenue),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.bsrevonly.1pct - revenue,
+         `Percent change` = (revenue.bsrevonly.1pct - revenue) / revenue)
+
+datatable(one.pct.bsrevonly.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r 1% increase bsrev only pr}
+
+one.pct.bsrevonly.pr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 9:22) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  drop_na(planning.region) %>%
+  group_by(planning.region) %>%
+  summarize(revenue = sum(revenue),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.bsrevonly.1pct - revenue,
+         `Percent change` = (revenue.bsrevonly.1pct - revenue) / revenue)
+
+datatable(one.pct.bsrevonly.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r 1% increase bsrev only edr}
+
+one.pct.bsrevonly.edr <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 9:22) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  drop_na(edr) %>%
+  group_by(edr) %>%
+  summarize(revenue = sum(revenue),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.bsrevonly.1pct - revenue,
+         `Percent change` = (revenue.bsrevonly.1pct - revenue) / revenue)
+
+datatable(one.pct.bsrevonly.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+```
+
+<br>
+
+# {.unnumbered .unlisted .toc-ignore .tabset}
+
+Let's now check it out by county.
+
+The map below shows that the counties that receive the highest bump in this scenario are Crow Wing and Pope - each get a .96% bump. The lowest bumps occur in the Southwest portion of the state.
+
+<br>
+
+```{r 1% increase bsrev only county}
+
+one.pct.bsrevonly.county <- original %>%
+  filter(group %in% c(1,4)) %>%
+  select(`District Name`, number, type, group, Dem_Desc, planning.region, edr, `County Name`, countyfp, all_of(categories)) %>%
+  gather(key = "categories", value = "revenue", 10:23) %>%
+  mutate(revenue = ifelse(is.na(revenue), 0, revenue)) %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  drop_na(countyfp) %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(revenue = sum(revenue),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(Difference = revenue.bsrevonly.1pct - revenue,
+         `Percent change` = (revenue.bsrevonly.1pct - revenue) / revenue) %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp")
+
+one.pct.bsrevonly.county.map <- ggplot(one.pct.bsrevonly.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = `Percent change`, data_id = countyfp, tooltip = paste(`County Name`, "\nTotal general education revenue: ", dollar(revenue), "\nRevenue if basic education revenue component increased by 1%: ", dollar(revenue.bsrevonly.1pct), "\nDifference in revenues: ", percent(`Percent change`), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
+  labs(title = "Change in total revenue if basic education revenue increased by 1%") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = one.pct.bsrevonly.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+
+

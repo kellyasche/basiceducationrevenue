@@ -54,7 +54,9 @@ theme_bar <- theme_bw() +
         legend.margin = margin(0,0,0,0),
         legend.title = element_blank(),
         legend.text = element_text(margin = margin(l = 2)),
-        text = element_text(family = "Arial"))
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
 
 theme_line <- theme_bw() +
   theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
@@ -67,7 +69,9 @@ theme_line <- theme_bw() +
         panel.border = element_blank(),
         legend.margin = margin(0,0,0,0),
         legend.key.size = unit(1, "lines"),
-        text = element_text(family = "Arial"))
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
 
 
 theme_sf <- theme_bw() +
@@ -77,12 +81,13 @@ theme_sf <- theme_bw() +
         panel.background = element_blank(),
         panel.grid.major = element_line(color = "white"),
         panel.border = element_blank(),
-        plot.title = element_text(hjust = 0.5),
         legend.title = element_blank(),
         legend.text = element_text(margin = margin(l = 2)),
         legend.margin = margin(0,0,0,0),
         legend.key.size = unit(1, "lines"),
-        text = element_text(family = "Arial"))
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
 
 regions <- read_csv("Data/Join docs/county_regions.csv") %>%
     select(5,6) %>%
@@ -99,7 +104,7 @@ counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
          Name = str_replace(Name, "Q", "q"),
          Name = str_replace(Name, "Of The", "of the"),
          Name = str_replace(Name, "Mcleod", "McLeod"),
-         planning.region = ifelse(Name == "Minnesota", "Minnesota", planning.region) ,
+         Dem_Desc = ifelse(Name == "Minnesota", "Minnesota", Dem_Desc) ,
          edr = str_replace(edr, "  ", " "),
          planning.region = str_replace(planning.region, " Minnesota", ""),
          planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
@@ -122,6 +127,7 @@ mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp",
   rename(countyfp = FIPS_CODE)
 
 ```
+
 
 ```{r master basic revenue}
 original <- read_csv("Data/Formula/Master.csv") %>%

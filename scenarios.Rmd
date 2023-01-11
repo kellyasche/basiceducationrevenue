@@ -469,8 +469,7 @@ master.1pct <- bsrev.1pct %>%
   select(1:8, 10:16, 18:20) %>%
   gather(key = "categories", value = "revenue.1pct", 4:18 ) %>%
   mutate(categories = str_sub(categories, 1, -6),
-         revenue.1pct = ifelse(is.na(revenue.1pct), 0, revenue.1pct))
-
+         revenue.1pct = ifelse(is.na(revenue.1pct), 0, revenue.1pct)) 
 ```
 
 
@@ -1358,7 +1357,7 @@ girafe(ggobj = one.pct.bsrevonly.county.map, height_svg = 10, width_svg = 10) %>
 
 <br>
 
-# Driver of differences
+# Driver of differences{.tabset}
 
 So it's clear that if only the basic education revenue allotment is increased, districts in more urban areas receive a larger bump. Why? 
 
@@ -1373,9 +1372,15 @@ Let's compare the two scenarios and see what's providing the largest bump. The t
 * diff.total.rev: The difference in total revenues between each scenario
 * pct.of.diff: how much the difference between the two total revenues is made up by that particular category.
 
+The table below provides all of this information for each school district. When sorting by rank for each district, there does seem to be a bit of a patter.
+
+The primary difference between the two scenarios for smaller, rural schools is the extra boost from local optional aid. This is almost always ranked #1 as the biggest driver in the difference between the two scenarios (between 50% and 70% of the difference).
+
+For larger school districts, operating capital is the primary driver.
+
 <br>
 
-```{r compared scenarios difference}
+```{r compared scenarios difference district}
 one.pct.comp.district <- master.1pct %>%
   filter(`District Name` != "Minnesota State Academies") %>%
   left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
@@ -1403,5 +1408,235 @@ datatable(one.pct.comp.district, class = "cell-border stripe", filter = "top", r
 
 <br>
 
+Let's see if there are any significant differences between public vs. charter.
 
+The table below shows that charter schools rely on 3 to a relatively equal degree - operating capital aid, small schools revenue, and english learners revenue each make up nearly 25% of the difference between the two scenarios.
+
+For school districts, local optional aid was by far the largest driver making up 44% of the difference between the two scenarios. This was followed by operating capital aid and gifted and talented with 25% and 11% respectively.
+
+<br>
+
+```{r compared scenarios difference group}
+one.pct.comp.group <- master.1pct %>%
+  filter(`District Name` != "Minnesota State Academies") %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(original[,c(2,595,609,1073)], by = c("District Name", "number", "type")) %>%
+  select(`District Name`, number, type, group, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  group_by(group, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(category.diff = revenue.1pct - revenue.bsrevonly.1pct) %>%
+  group_by(group) %>%
+  mutate(total.1pct = sum(revenue.1pct),
+         total.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(diff.total.rev = total.1pct - total.bsrevonly.1pct,
+         pct.of.difference = category.diff / diff.total.rev) %>%
+  group_by(group) %>%
+  arrange(desc(pct.of.difference)) %>%
+  mutate(`Category Rank` = seq(n())) %>%
+  ungroup() %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(Definition, Category, 3:10)
+
+datatable(one.pct.comp.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:8, "$", digits = 0) %>%
+  formatPercentage(9, digits = 2)
+  
+```
+
+<br>
+
+Okay, now let's see what this looks like across RUCA categories and regions.
+
+The table below shows that all RUCA categories share the same primary driver of the difference between the two scenarios - local optional aid is #1. For entirely rural, town/rural mix, and urban/town/rural this category makes up nearly 50% of the difference between the two scenarios while only being 34% for entirely urban school districts.
+
+Operating capital aid is also in all three RUCA categories. It's percentage of the difference varies across the categories though. It's ranked third for entirely rural while being 2nd for the remaining. It varies from making up 30% of the difference for entirely urban and 15% for entirely rural. 
+
+The remaining difference in categories is the small schools revenue for entirely rural - it comprises 17% of the difference and is ranked 2nd. Entirely urban has gifted and talented as it's third ranked category and town/rural mi and urban/town/rural mix each have equity aid as it's 3rd ranked category.
+
+The planning region breakdown shows that local optional aid is the number 1 ranked primary driver in the differences between the two scenarios. It ranges from 31% for the seven county metro to 52% for Central Minnesota.
+
+The second ranked category is also shared across all planning regions - Operating capital aid ranges from  18% in Southwest to 30% for the seven county metro.
+
+The third ranked category is shared across nearly all of the planning regions - gifted and talented is third for all regions except Southwest where equity aid is ranked 3rd.
+
+Just like the planning regions, the first ranked category that drives the difference between the two scenarios is shared across all EDRs - local optional aid. 
+
+The 2nd category is shared across all EDRs as well - operating capital aid.
+
+The 3rd category varies across EDRs. In Northwest it's small schools while quite a few of the other EDRs have gifted and talented - especially EDRs that have larger metros in it. Equity Aid also plays a role for EDRs in southern and Central Minnesota.
+
+<br>
+
+## RUCA
+
+<br>
+
+```{r compared scenarios difference ruca}
+one.pct.comp.ruca <- master.1pct %>%
+  filter(`District Name` != "Minnesota State Academies") %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(original[,c(2,595,609,1073:1079)], by = c("District Name", "number", "type")) %>% 
+  select(Dem_Desc, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  group_by(Dem_Desc, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(category.diff = revenue.1pct - revenue.bsrevonly.1pct) %>%
+  group_by(Dem_Desc) %>%
+  mutate(total.1pct = sum(revenue.1pct),
+         total.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(diff.total.rev = total.1pct - total.bsrevonly.1pct,
+         pct.of.difference = category.diff / diff.total.rev) %>%
+  group_by(Dem_Desc) %>%
+  arrange(desc(pct.of.difference)) %>%
+  mutate(`Category Rank` = seq(n())) %>%
+  ungroup() %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(Dem_Desc, Category, 3:10)
+
+datatable(one.pct.comp.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:8, "$", digits = 0) %>%
+  formatPercentage(9, digits = 2)
+  
+```
+
+<br>
+
+## Planning Region
+
+<br>
+
+```{r compared scenarios difference pr}
+one.pct.comp.pr <- master.1pct %>%
+  filter(`District Name` != "Minnesota State Academies") %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(original[,c(2,595,609,1073:1079)], by = c("District Name", "number", "type")) %>% 
+  select(planning.region, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  group_by(planning.region, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(category.diff = revenue.1pct - revenue.bsrevonly.1pct) %>%
+  group_by(planning.region) %>%
+  mutate(total.1pct = sum(revenue.1pct),
+         total.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(diff.total.rev = total.1pct - total.bsrevonly.1pct,
+         pct.of.difference = category.diff / diff.total.rev) %>%
+  group_by(planning.region) %>%
+  arrange(desc(pct.of.difference)) %>%
+  mutate(`Category Rank` = seq(n())) %>%
+  ungroup() %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(planning.region, Category, 3:10)
+
+datatable(one.pct.comp.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:8, "$", digits = 0) %>%
+  formatPercentage(9, digits = 2)
+  
+```
+
+<br>
+
+## EDR
+
+<br>
+
+```{r compared scenarios difference edr}
+one.pct.comp.edr <- master.1pct %>%
+  filter(`District Name` != "Minnesota State Academies") %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(original[,c(2,595,609,1073:1079)], by = c("District Name", "number", "type")) %>% 
+  select(edr, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  group_by(edr, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(category.diff = revenue.1pct - revenue.bsrevonly.1pct) %>%
+  group_by(edr) %>%
+  mutate(total.1pct = sum(revenue.1pct),
+         total.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(diff.total.rev = total.1pct - total.bsrevonly.1pct,
+         pct.of.difference = category.diff / diff.total.rev) %>%
+  group_by(edr) %>%
+  arrange(desc(pct.of.difference)) %>%
+  mutate(`Category Rank` = seq(n())) %>%
+  ungroup() %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(edr, Category, 3:10)
+
+datatable(one.pct.comp.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:8, "$", digits = 0) %>%
+  formatPercentage(9, digits = 2)
+  
+```
+
+<br>
+
+# {.unnumbered .unlisted .toc-ignore .tabset}
+
+Let's see what this looks like at a county level. The maps below provide the 3 top categories that drive the difference between the two scenarios.
+
+The maps below are interesting. Local optional aid is the number 1 category driving the difference between the two categories across every county except three - Hennepin and Washington where operating capital aid is number and Cook where small schools revenue is number 1. 
+
+For the 2nd ranked driver, operating capital aid is the driver across nearly all of Minnesota. In the very western edge of Minnesota, small schools revenue becomes the 2nd ranked driver, english learners is in Nobles County, Gifted and talented in Hennepin and Lake and local optional aid in Washington.
+
+The third rank gets a bit more varies. Both equity aid and gifted and talented are ranked 3rd across much of Minnesota. The central lakes region in particular and southeast Minnesota have gifted and talented aid as their third ranked driver while equity aid covers Northwest, Central, and Southern Minnesota counties. In addition, small schools and local optional aid play a role in a number of more rural counties in Southwest and Northwest Minnesota. English learners is also significant in counties where there are large concentrations of immigrant and refugree populations.
+
+<br>
+
+```{r compared scenarios difference county}
+one.pct.comp.county <- master.1pct %>%
+  filter(`District Name` != "Minnesota State Academies") %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(original[,c(2,595,609,1073:1079)], by = c("District Name", "number", "type")) %>% 
+  select(`County Name`, countyfp, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  group_by(`County Name`, countyfp, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(category.diff = revenue.1pct - revenue.bsrevonly.1pct) %>%
+  group_by(`County Name`, countyfp) %>%
+  mutate(total.1pct = sum(revenue.1pct),
+         total.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(diff.total.rev = total.1pct - total.bsrevonly.1pct,
+         pct.of.difference = category.diff / diff.total.rev) %>%
+  group_by(`County Name`, countyfp) %>%
+  arrange(desc(pct.of.difference)) %>%
+  mutate(`Category Rank` = seq(n())) %>%
+  ungroup() %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  filter(`Category Rank` < 4) %>%
+  left_join(mn_counties[c(4,7)], by = "countyfp")
+
+one.pct.comp.county.map <- ggplot(one.pct.comp.county) +
+  facet_wrap(~`Category Rank`, ncol = 2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = Category, data_id = countyfp, tooltip = paste(`County Name`, "\nCategory Rank: ", `Category Rank`, "\nCategory: ", Category, "\nComprises ", percent(pct.of.difference, accuracy = .01), " of the differenve between the two scenarios.", sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 8, "RdYlBu")) +
+  labs(title = "Top 3 categories driving difference between two scenarios") +
+  theme(legend.box.margin = margin(50, 0, -100, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = one.pct.comp.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
 

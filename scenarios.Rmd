@@ -1640,3 +1640,11 @@ girafe(ggobj = one.pct.comp.county.map, height_svg = 10, width_svg = 10) %>%
 
 <br>
 
+# Difference in per APU between both scenarios
+
+I think the best way to try and figure out how "fair" all of this is, is to get at it by APU.
+
+<br>
+
+
+

@@ -1,5 +1,5 @@
 ---
-title: "Scenarios"
+title: "Scenario - 1%"
 output:
   html_document:
     toc: true
@@ -1640,11 +1640,503 @@ girafe(ggobj = one.pct.comp.county.map, height_svg = 10, width_svg = 10) %>%
 
 <br>
 
-# Difference in per APU between both scenarios
+# Per APU - differences in scenarios{.tabset}
 
-I think the best way to try and figure out how "fair" all of this is, is to get at it by APU.
+I think the best way to try and figure out how "fair" all of this is, is to get at it by APU. First, we will take a look at the difference in total revenue per APU between the two scenarios.
+
+The table below provides the difference in revenue per APU between funding the entire general education revenue formula by 1% higher vs. just increasing the basic education component by 1%. 
+
+If you sort the table by highest difference first, a quick glance at the top ten shows that our most rural schools are most likely to have the largest difference in revenue per APU between the two scenarios.
 
 <br>
+
+```{r differences in per APU district}
+apu.join <- original %>%
+  select(`District Name`, number, type, awadm22) 
+
+total.rev.apu.district <- master.1pct %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.1pct = sum(revenue.1pct),
+            total.rev.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  left_join(apu.join, by = c("District Name", "number", "type")) %>%
+  mutate(total.rev.1pct.apu = total.rev.1pct / awadm22,
+         total.rev.bsrevonly.1pct.apu = total.rev.bsrevonly.1pct / awadm22,
+         difference.apu = total.rev.1pct.apu - total.rev.bsrevonly.1pct.apu) %>%
+  filter(awadm22 > 0)
+
+datatable(total.rev.apu.district, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(4:5, "$", digits = 2) %>%
+  formatCurrency(6, "", digits = 0) %>%
+  formatCurrency(7:9, "$", digits = 2)
+
+
+```
+
+<br>
+
+Now let's take a look at this by public vs charter schools.
+
+The table below shows that school districts receive about $0.61 per APU more if the general education formula receives a 1% bump vs. only the basic education revenue component receiving a 1% bump. 
+
+<br>
+
+```{r differences in per APU group}
+apu.group.join <- original %>%
+  select(`District Name`, number, type, group, awadm22) 
+
+total.rev.apu.group <- master.1pct %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(apu.group.join, by = c("District Name", "number", "type")) %>%
+  group_by(group) %>%
+  summarize(total.rev.1pct = sum(revenue.1pct),
+            total.rev.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(total.rev.1pct.apu = total.rev.1pct / awadm22,
+         total.rev.bsrevonly.1pct.apu = total.rev.bsrevonly.1pct / awadm22,
+         difference.apu = total.rev.1pct.apu - total.rev.bsrevonly.1pct.apu) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, total.rev.1pct, total.rev.bsrevonly.1pct, awadm22, total.rev.1pct.apu, total.rev.bsrevonly.1pct.apu, difference.apu, Definition)
+
+datatable(total.rev.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 2) %>%
+  formatCurrency(4, "", digits = 0) %>%
+  formatCurrency(5:7, "$", digits = 2)
+
+```
+
+<br>
+
+Now let's take a look and see if rural-ness and geography create any differences.
+
+As the RUCA table shows, the more rural location of a school district the larger the difference between the two scenarios. Entirely rural school districts would receive $0.86 per APU more if the entire general education formula was increase rather than just the basic revenue. Entirely urban school districts would see a difference of $0.51 per APU.
+
+Our western planning regions also would see the largest differences. Southwest and Northwest school districts would receive $0.81 and $0.73 per APU more. Interestingly, Central and Southeast are next with $0.71 more per APU followed by Northeast with $0.62 and seven county metro with $0.50.
+
+The EDRs provide more evidence that our most rural schools receive the largest difference - EDR 8, 6W and 1 all receive nearly a $1 more per APU if the entire general education formula is increased by 1% vs. only the basic revenue component.
+
+<br>
+
+## RUCA
+
+<br>
+
+```{r differences in per APU ruca}
+apu.ruca.join <- original %>%
+  select(`District Name`, number, type, Dem_Desc, awadm22) 
+
+total.rev.apu.ruca <- master.1pct %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(apu.ruca.join, by = c("District Name", "number", "type")) %>%
+  drop_na(Dem_Desc) %>%
+  group_by(Dem_Desc) %>%
+  summarize(total.rev.1pct = sum(revenue.1pct),
+            total.rev.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(total.rev.1pct.apu = total.rev.1pct / awadm22,
+         total.rev.bsrevonly.1pct.apu = total.rev.bsrevonly.1pct / awadm22,
+         difference.apu = total.rev.1pct.apu - total.rev.bsrevonly.1pct.apu)
+
+datatable(total.rev.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 2) %>%
+  formatCurrency(4, "", digits = 0) %>%
+  formatCurrency(5:7, "$", digits = 2)
+
+```
+
+<br>
+
+## Planning Region
+
+<br>
+
+```{r differences in per APU pr}
+apu.pr.join <- original %>%
+  select(`District Name`, number, type, planning.region, awadm22) 
+
+total.rev.apu.pr <- master.1pct %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(apu.pr.join, by = c("District Name", "number", "type")) %>%
+  drop_na(planning.region) %>%
+  group_by(planning.region) %>%
+  summarize(total.rev.1pct = sum(revenue.1pct),
+            total.rev.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(total.rev.1pct.apu = total.rev.1pct / awadm22,
+         total.rev.bsrevonly.1pct.apu = total.rev.bsrevonly.1pct / awadm22,
+         difference.apu = total.rev.1pct.apu - total.rev.bsrevonly.1pct.apu)
+
+datatable(total.rev.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 2) %>%
+  formatCurrency(4, "", digits = 0) %>%
+  formatCurrency(5:7, "$", digits = 2)
+
+```
+
+<br>
+
+## EDR
+
+<br>
+
+```{r differences in per APU edr}
+apu.edr.join <- original %>%
+  select(`District Name`, number, type, edr, awadm22) 
+
+total.rev.apu.edr <- master.1pct %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(apu.edr.join, by = c("District Name", "number", "type")) %>%
+  drop_na(edr) %>%
+  group_by(edr) %>%
+  summarize(total.rev.1pct = sum(revenue.1pct),
+            total.rev.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(total.rev.1pct.apu = total.rev.1pct / awadm22,
+         total.rev.bsrevonly.1pct.apu = total.rev.bsrevonly.1pct / awadm22,
+         difference.apu = total.rev.1pct.apu - total.rev.bsrevonly.1pct.apu)
+
+datatable(total.rev.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 2) %>%
+  formatCurrency(4, "", digits = 0) %>%
+  formatCurrency(5:7, "$", digits = 2)
+
+```
+
+<br>
+
+# {.unnumbered .unlisted .toc-ignore}
+
+The map below provides the difference in revenue per APU between increasing the entire general education revenue formula by 1% vs. only increased the basic revenue component by 1%.
+
+School districts located on the western side of Minnesota differently see a larger difference in funding if the entire formula is increased. Many of these counties receive between $.80 and $1.00 more per APU than if only the basic education component is increased.
+
+<br>
+
+```{r differences in per APU county}
+apu.county.join <- original %>%
+  select(`District Name`, number, type, `County Name`, countyfp, awadm22) 
+
+total.rev.apu.county <- master.1pct %>%
+  left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(apu.county.join, by = c("District Name", "number", "type")) %>%
+  drop_na(`County Name`, countyfp) %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(total.rev.1pct = sum(revenue.1pct),
+            total.rev.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(total.rev.1pct.apu = total.rev.1pct / awadm22,
+         total.rev.bsrevonly.1pct.apu = total.rev.bsrevonly.1pct / awadm22,
+         difference.apu = total.rev.1pct.apu - total.rev.bsrevonly.1pct.apu,
+         difference.apu.bins = cut(difference.apu,
+                                   breaks = c(0, .6, .7, .8, .9, 10),
+                                   labels = c("$0.30 to $0.60", "$0.60 to $0.70", "$0.70 to $0.80", "$0.80 to $0.90", "$0.90 to $1.10"))) %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp") 
+
+total.rev.apu.county.map <- ggplot(total.rev.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = difference.apu.bins, data_id = countyfp, tooltip = paste(`County Name`, "\nTotal revenue per APU - entire formula increased by 1%: ", dollar(total.rev.1pct.apu), "\nTotal revenue per APU - only basic revenue component increased: ", dollar(total.rev.bsrevonly.1pct.apu), "\nDifference between two scenarios: ", dollar(difference.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
+  labs(title = "Difference per APU between two scenarios") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+# Drivers of the difference in APU{.tabset}
+
+We now want to see what components of the general education formula drive the increase in total revenue for some schools and not others.
+
+The table below provides the difference in total revenues per APU for each scenario as well as the percentage that each category comprises of that difference.
+
+If we sort the table by schools with the largest difference in total revenue between the two scenarios we can see that local optional aid, small schools funding and sparsity are some of the primary drivers. 
+
+<br>
+
+```{r drivers apu district}
+one.pct.comp.apu.district <- one.pct.comp.district %>%
+  select(`District Name`, number, type, group, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  left_join(apu.join, by = c("District Name", "number", "type")) %>%
+  group_by(`District Name`, number, type, group) %>%
+  mutate(total.revenue.1pct = sum(revenue.1pct),
+         total.revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(difference.total.rev = total.revenue.1pct - total.revenue.bsrevonly.1pct,
+         difference.total.rev.apu = difference.total.rev / awadm22,
+         category.diff = revenue.1pct - revenue.bsrevonly.1pct,
+         category.diff.apu = category.diff / awadm22,
+         pct.total.diff.apu = category.diff.apu / difference.total.rev.apu) %>%
+  group_by(`District Name`, number, type) %>%
+  arrange(desc(pct.total.diff.apu)) %>%
+  mutate(rank = seq(n())) %>%
+  filter(rank < 4) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(`District Name`, number, type, Category, difference.total.rev.apu, category.diff.apu, pct.total.diff.apu, rank)
+
+datatable(one.pct.comp.apu.district, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:7)))) %>%
+  formatCurrency(5:6, "$", digits = 2) %>%
+  formatPercentage(7, digits = 2)
+
+```
+
+<br>
+
+Next lets see what the drivers are for public schools and charter.
+
+The primary driver in differences between the two scenarios for public schools is local optional aid which makes up 44% of the difference. This is followed by operating capital aid at 25% and gifted and talented at 11%.
+
+For charter schools the primary driver is operating capital aid at 27% of the difference, followed by small schools and english learners revenue at 26% and 25% respectively.
+
+<br>
+
+```{r drivers apu group}
+one.pct.comp.apu.group <- one.pct.comp.district %>%
+  select(`District Name`, number, type, group, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  left_join(apu.group.join, by = c("District Name", "number", "type", "group")) %>%
+  drop_na(group) %>%
+  group_by(group, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  group_by(group) %>%
+  mutate(total.revenue.1pct = sum(revenue.1pct),
+         total.revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(difference.total.rev = total.revenue.1pct - total.revenue.bsrevonly.1pct,
+         difference.total.rev.apu = difference.total.rev / awadm22,
+         category.diff = revenue.1pct - revenue.bsrevonly.1pct,
+         category.diff.apu = category.diff / awadm22,
+         pct.total.diff.apu = category.diff.apu / difference.total.rev.apu) %>%
+  group_by(group) %>%
+  arrange(desc(pct.total.diff.apu)) %>%
+  mutate(rank = seq(n())) %>%
+  ungroup() %>%
+  filter(rank < 4) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, Category, difference.total.rev.apu, category.diff.apu, pct.total.diff.apu, rank)
+
+datatable(one.pct.comp.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatCurrency(3:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+
+```
+
+<br>
+
+Now lets check to see if the primary drivers are different based on rural-ness and geography.
+
+When broken down by RUCA category, local optional aid is the #1 category that drives the difference between the two scenarios. It comprises 50% of the difference across entirely rural, town/rural mix, and urban/town/rural mix schools while being 34% for entirely urban.
+
+From there, small schools becomes the next biggest driver for entirely rural comprising 17% of the difference between the two scenarios while operating capital aid is #2 for the other RUCA groups. 
+
+Local optional aid is also #1 for planning regions while operating capital is #2 for all. Gifted and talented becomes the next largest for all planniing regions except for Southwest where equity aid becomes #3.
+
+Local optional aid is #1 for all EDRS. Operating capital aid is next. Equity aid, small schools and gifted and talented are all #3. 
+
+<br>
+
+## RUCA
+
+<br>
+
+```{r drivers apu ruca}
+one.pct.comp.apu.ruca <- one.pct.comp.district %>%
+  select(`District Name`, number, type, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  left_join(apu.ruca.join, by = c("District Name", "number", "type")) %>%
+  drop_na(Dem_Desc) %>%
+  group_by(Dem_Desc, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  group_by(Dem_Desc) %>%
+  mutate(total.revenue.1pct = sum(revenue.1pct),
+         total.revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(difference.total.rev = total.revenue.1pct - total.revenue.bsrevonly.1pct,
+         difference.total.rev.apu = difference.total.rev / awadm22,
+         category.diff = revenue.1pct - revenue.bsrevonly.1pct,
+         category.diff.apu = category.diff / awadm22,
+         pct.total.diff.apu = category.diff.apu / difference.total.rev.apu) %>%
+  group_by(Dem_Desc) %>%
+  arrange(desc(pct.total.diff.apu)) %>%
+  mutate(rank = seq(n())) %>%
+  ungroup() %>%
+  filter(rank < 4) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(Dem_Desc, Category, difference.total.rev.apu, category.diff.apu, pct.total.diff.apu, rank)
+
+datatable(one.pct.comp.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatCurrency(3:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+
+```
+
+<br>
+
+## Planning Region
+
+<br>
+
+```{r drivers apu pr}
+one.pct.comp.apu.pr <- one.pct.comp.district %>%
+  select(`District Name`, number, type, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  left_join(apu.pr.join, by = c("District Name", "number", "type")) %>%
+  drop_na(planning.region) %>%
+  group_by(planning.region, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  group_by(planning.region) %>%
+  mutate(total.revenue.1pct = sum(revenue.1pct),
+         total.revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(difference.total.rev = total.revenue.1pct - total.revenue.bsrevonly.1pct,
+         difference.total.rev.apu = difference.total.rev / awadm22,
+         category.diff = revenue.1pct - revenue.bsrevonly.1pct,
+         category.diff.apu = category.diff / awadm22,
+         pct.total.diff.apu = category.diff.apu / difference.total.rev.apu) %>%
+  group_by(planning.region) %>%
+  arrange(desc(pct.total.diff.apu)) %>%
+  mutate(rank = seq(n())) %>%
+  ungroup() %>%
+  filter(rank < 4) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(planning.region, Category, difference.total.rev.apu, category.diff.apu, pct.total.diff.apu, rank)
+
+datatable(one.pct.comp.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatCurrency(3:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+
+```
+
+<br>
+
+## EDR 
+
+<br>
+
+```{r drivers apu edr}
+one.pct.comp.apu.edr <- one.pct.comp.district %>%
+  select(`District Name`, number, type, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  left_join(apu.edr.join, by = c("District Name", "number", "type")) %>%
+  drop_na(edr) %>%
+  group_by(edr, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  group_by(edr) %>%
+  mutate(total.revenue.1pct = sum(revenue.1pct),
+         total.revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(difference.total.rev = total.revenue.1pct - total.revenue.bsrevonly.1pct,
+         difference.total.rev.apu = difference.total.rev / awadm22,
+         category.diff = revenue.1pct - revenue.bsrevonly.1pct,
+         category.diff.apu = category.diff / awadm22,
+         pct.total.diff.apu = category.diff.apu / difference.total.rev.apu) %>%
+  group_by(edr) %>%
+  arrange(desc(pct.total.diff.apu)) %>%
+  mutate(rank = seq(n())) %>%
+  ungroup() %>%
+  filter(rank < 4) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(edr, Category, difference.total.rev.apu, category.diff.apu, pct.total.diff.apu, rank)
+
+datatable(one.pct.comp.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatCurrency(3:4, "$", digits = 2) %>%
+  formatPercentage(5, digits = 2)
+
+```
+
+<br>
+
+# {.unnumbered .unlisted .toc-ignore .tabset}
+
+Next let's check to see what the top three drivers are by county.
+
+The map below shows that the two categories acting as drivers in differences in total revenue are shared across nearly all counties. The top driver across all counties except 3 is local optional aid. Cook County has small schools while Hennepin and Washington have Operating capital.
+
+The second driver shared across nearly all counties is operating capital aid with small schools being in a few counties in the western border and english learners in Nobles County and Gifted and TAlented in Hennepin.
+
+The third ranking category is a bit more varied. Quite a few counties have equity aid as their third ranked driver while Gifted and Talented also comprises quite a few.
+
+<br>
+
+```{r drivers apu county}
+one.pct.comp.apu.county <- one.pct.comp.district %>%
+  select(`District Name`, number, type, categories, revenue.1pct, revenue.bsrevonly.1pct) %>%
+  left_join(apu.county.join, by = c("District Name", "number", "type")) %>%
+  drop_na(`County Name`) %>%
+  group_by(`County Name`, countyfp, categories) %>%
+  summarize(revenue.1pct = sum(revenue.1pct),
+            revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  group_by(`County Name`, countyfp) %>%
+  mutate(total.revenue.1pct = sum(revenue.1pct),
+         total.revenue.bsrevonly.1pct = sum(revenue.bsrevonly.1pct)) %>%
+  ungroup() %>%
+  mutate(difference.total.rev = total.revenue.1pct - total.revenue.bsrevonly.1pct,
+         difference.total.rev.apu = difference.total.rev / awadm22,
+         category.diff = revenue.1pct - revenue.bsrevonly.1pct,
+         category.diff.apu = category.diff / awadm22,
+         pct.total.diff.apu = category.diff.apu / difference.total.rev.apu) %>%
+  group_by(`County Name`, countyfp) %>%
+  arrange(desc(pct.total.diff.apu)) %>%
+  mutate(rank = seq(n())) %>%
+  ungroup() %>%
+  filter(rank < 4) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(`County Name`, countyfp, Category, difference.total.rev.apu, category.diff.apu, pct.total.diff.apu, rank) %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp")
+
+one.pct.comp.apu.county.map <- ggplot(one.pct.comp.apu.county) +
+  facet_wrap(~rank, ncol = 2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = Category, data_id = countyfp, tooltip = paste(`County Name`, "\nRank of driver: ", rank, "\nCategory: ", Category, "\nPercent this category comprises of difference between the two scenarios: ", percent(pct.total.diff.apu, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 8, "RdYlBu")) +
+  labs(title = "Top 3 drivers of differences") +
+  theme(legend.box.margin = margin(300, 0, 0, -200),
+        text = element_text(size = 18))
+
+girafe(ggobj = one.pct.comp.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+
+
+
+
 
 
 

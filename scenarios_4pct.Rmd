@@ -1,0 +1,1121 @@
+---
+title: "Scenario - 4%"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         Dem_Desc = ifelse(Name == "Minnesota", "Minnesota", Dem_Desc) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.ruca <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+
+```{r master basic revenue}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         eqgroup.label = ifelse(is.na(eqgroup.label), "", eqgroup.label))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+var.codes <- read_xlsx("Data/Formula/primary variable codes.xlsx")
+
+categories <- c("bsrev", "exdayr", "gtrev", "smlrev", "decrev", "locaid", "afdc22", "totlep", "totspar", "cexaid", "tsparrev", "eqaid", "hhaid", "penrev")
+
+master.original <- original %>%
+  select(`District Name`, number, type, categories) %>%
+  gather(key = "categories", value = "revenue.original", 4:17)
+
+names(master.original)
+```
+
+```{r 4% increase scenario}
+bsrev.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         bsrev.4pct = round(awadm22 * fa22.4pct)) %>%
+  select(`District Name`, number, type, bsrev.4pct)
+
+exdayr.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22x.4pct = (fa22x * .04) + fa22x,
+         exdayr.4pct = round(fa22x.4pct * xwadm22),
+         exdayr.4pct = ifelse(number == 347, exdayr.4pct, exdayr.4pct)) %>%
+  select(`District Name`, number, type, exdayr.4pct)
+
+gtrev22.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(gt22.4pct = gt22 + 1,
+         gtrev.4pct = round(gt22.4pct * awadm22),
+         gtaid.4pct = gtrev.4pct,
+         gtlvy.4pct = gtrev.4pct - gtaid.4pct) %>%
+  select(`District Name`, number, type, gtrev.4pct)
+
+smlrev.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22sm.4pct = (fa22sm * .04) + fa22sm,
+         smlalo.4pct = smlrto * fa22sm.4pct,
+         smlrev.4pct = round(smlalo.4pct * awadm22),
+         smlrev.4pct = ifelse(number == 318, (70189.06*.04) + 70189.06, smlrev.4pct),
+         smlrev.4pct = ifelse(number == 363, (115058.66 * .04) + 115058.66, smlrev.4pct),
+         smlrev.4pct = ifelse(number == 381, (241346.69 * .04) + 241346.69, smlrev.4pct),
+         smlrev.4pct = ifelse(number == 2142, (404349.22 * .04) + 404349.22, smlrev.4pct)) %>%
+  select(`District Name`, number, type, smlrev.4pct)
+
+decrev.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.4pct = (fa22 * .04) + fa22,
+         decalo.4pct = round(fa22.4pct * 0.28),
+         declpu.4pct = awadm21 - awadm22,
+         declpu.4pct = ifelse(declpu.4pct < 0, 0, declpu.4pct),
+         decrev.4pct = round(decalo.4pct * declpu.4pct),
+         decrev.4pct = ifelse(awadm22 == 0, 0, decrev.4pct)) %>%
+  select(`District Name`, number, type, decrev.4pct)
+
+locaid.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(localo.4pct = (localo * .04) + localo,
+         locrev.4pct = (locrev * .04) + locrev,
+         loctier1.4pct = 0,
+         loctier2.4pct = 0,
+         loctier1.4pct = ifelse(localo.4pct >= (300*.04) + 300, (300*.04) + 300, loctier1.4pct),
+         loctier1.4pct = ifelse(localo.4pct < (300*.04) + 300, localo.4pct, loctier1.4pct),
+         loctier2.4pct = ifelse(loctier1.4pct == (300*.04)+300, localo.4pct - loctier1.4pct, loctier2.4pct),
+         loctier2 = ifelse(loctier1.4pct < (300*.04) + 300, 0, loctier2.4pct),
+         loctier1rev.4pct = round(loctier1.4pct * awadm22),
+         loctier2rev.4pct = round(loctier2.4pct * awadm22),
+         loctier1_eq_factor.4pct = (880000 * .04) + 880000,
+         loctier2_eq_factor.4pct = (510000 * .04) + 510000,
+         loclvytier1.4pct = 0.0,
+         loclvytier1.4pct = ifelse(wadm22 > 0 & group == 1, round(loctier1rev.4pct * ((rmkv19 / wadm22) / loctier1_eq_factor.4pct)), loclvytier1.4pct)) %>%
+  rowwise() %>%
+  mutate(loclvytier1.4pct = min(loctier1rev.4pct, loclvytier1.4pct)) %>%
+  ungroup() %>%
+  mutate(locaidtier1.4pct = loctier1rev.4pct - loclvytier1.4pct,
+         loclvytier2.4pct = 0.0,
+         loclvytier2.4pct = ifelse(wadm22 > 0 & group == 1, round(loctier2rev.4pct * ((rmkv19 / wadm22) / loctier2_eq_factor.4pct)), loclvytier2.4pct)) %>%
+  rowwise() %>%
+  mutate(loclvytier2.4pct = min(loctier2rev.4pct, loclvytier2.4pct)) %>%
+  ungroup() %>%
+  mutate(locaidtier2.4pct = loctier2rev.4pct - loclvytier2.4pct,
+         loclvy.4pct = loclvytier1.4pct + loclvytier2.4pct,
+         locaid.4pct = locaidtier1.4pct + locaidtier2.4pct) %>%
+  select(`District Name`, number, type, loctier1rev.4pct, locaid.4pct)
+
+afdc22.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(afdc22.4pct = (afdc22 * .04) + afdc22) %>%
+  select(`District Name`, number, type, afdc22.4pct)
+
+totlep.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(leprat1.4pct = (704*.04) + 704,
+         leprat2.4pct = (250*.04) + 250,
+         leprev.4pct = round(lepadm22_min * leprat1.4pct),
+         leppct.4pct = 0.0,
+         leppct.4pct = ifelse(admsv22 > 0, lepadm22 / admsv22, leppct.4pct),
+         lepftr.4pct = leppct.4pct / 0.115,
+         lepftr.4pct = ifelse(lepftr.4pct < 0, 0,
+                         ifelse(lepftr.4pct > 1, 1, lepftr.4pct)),
+         lepcpu.4pct = lepadm22 * lepftr.4pct,
+         lepcrev.4pct = round(lepcpu.4pct * leprat2.4pct),
+         totlep.4pct = leprev.4pct + lepcrev.4pct) %>%
+  select(`District Name`, number, type, totlep.4pct)
+
+totspar.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         fa22ss.4pct = fa22.4pct - 530,
+         sprevini.4pct = round(isoftr * admftr * sadmsv22 * fa22ss.4pct - 0),
+         mspar22.4pct = round(mspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         hhspar22.4pct = round(hhspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         sprev.4pct = sprevini.4pct,
+         sprev.4pct = ifelse(mspar22.4pct > sprevini.4pct, mspar22.4pct, sprev.4pct),
+         sprev.4pct = ifelse(hhspar22.4pct > sprevini.4pct, hhspar22.4pct, sprev.4pct),
+         espar22.4pct = (espar22 * .04) + espar22,
+         elmspar.4pct = round(espar22.4pct * (fa22ss.4pct / fa22ss.4pct)),
+         minspar.4pct = sprev.4pct + elmspar.4pct,
+         totspar.4pct = minspar.4pct,
+         totspar.4pct = ifelse(closedblg > 0 & srsrev21 > minspar.4pct, srsrev21, totspar.4pct),
+         srsrev22.4pct = totspar.4pct) %>%
+  select(`District Name`, number, type,  totspar.4pct)
+  
+
+cexaid.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(cxfrev.4pct = round(awadm22 * (((79*.04)+79) + ((109*.04)+109) * ageidx22)),
+         ocexrev.4pct = round(cxfrev.4pct + (((31*.04)+31) * ywadm22)),
+         cex_eq_factor.4pct = (22912*.04)+22912,
+         cexrto.4pct = 0.0,
+         cexrto.4pct = ifelse(awadm22 > 0 & group == 1, (antc19 / awadm22) / cex_eq_factor.4pct, cexrto.4pct),
+         cexrto.4pct = ifelse(cexrto.4pct < 0, 0,
+                              ifelse(cexrto.4pct > 1.0, 1, cexrto.4pct)),
+         cexlvy.4pct = round(ocexrev.4pct * cexrto.4pct),
+         cexaid.4pct = ocexrev.4pct - cexlvy.4pct) %>%
+  select(`District Name`, number, type, cexaid.4pct)
+
+tsparrev.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         fa22ts.4pct = fa22.4pct,
+         tsparal.4pct = ((fa22ts.4pct * 0.141 * trsindex**0.26 * trdindex**0.13) -(fa22ts.4pct * trapct)),
+         tsparal.4pct = ifelse(tsparal.4pct < 0, 0, tsparal.4pct), #if less than zero, return zero
+         bastrans.4pct = round((fa22ts.4pct * trapct) * awadm22),
+         tsparrev1.4pct = round(tsparal.4pct * awadm22),
+         tsparrev2.4pct = 0,
+         tottrarev.4pct = tottrarev22) %>%
+  rowwise() %>%
+  mutate(transex.4pct = min(transex21, transex20 * 1.05)) %>%
+  ungroup() %>%
+  mutate(tsparrev2.4pct = (transex.4pct - tottrarev.4pct) * 0.182,
+         tsparrev2.4pct = ifelse(tsparrev2.4pct < 0, 0, tsparrev2.4pct),
+         tsparrev.4pct = tsparrev1.4pct + tsparrev2.4pct,
+         tsparaln.4pct = 0,
+         tsparaln.4pct = ifelse(awadm22 > 0 & group==1, (tsparrev2.4pct / awadm22) + tsparal.4pct, tsparaln.4pct)) %>%
+  select(`District Name`, number, type, tsparaln.4pct, tsparrev.4pct)
+
+hhaid.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(hh_eq_factor.4pct = (hh_eq_factor * .04) + hh_eq_factor,
+         hhlvy.4pct = 0.0,
+         hhlvy.4pct = ifelse(wadm22 > 0 & group == 1, round(hhrev * ((rmkv19 / wadm22) / hh_eq_factor.4pct)), hhlvy.4pct)) %>%
+  rowwise() %>%
+  mutate(hhlvy.4pct = min(hhlvy.4pct, hhrev)) %>%
+  ungroup() %>%
+  mutate(hhaid.4pct = hhrev - hhlvy.4pct) %>%
+  select(`District Name`, number, type, hhaid.4pct)
+
+refrev.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(refcap.4pct = max(altcap22, stdcap)) %>%
+  ungroup() %>%
+  mutate(fa22.4pct = (fa22 * .04) + fa22,
+         fa22ss.4pct = fa22.4pct - 530,
+         sprevini.4pct = round(isoftr * admftr * sadmsv22 * fa22ss.4pct - 0),
+         mspar22.4pct = round(mspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         hhspar22.4pct = round(hhspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         sprev.4pct = sprevini.4pct,
+         sprev.4pct = ifelse(mspar22.4pct > sprevini.4pct, mspar22.4pct, sprev.4pct),
+         sprev.4pct = ifelse(hhspar22.4pct > sprevini.4pct, hhspar22.4pct, sprev.4pct),
+         espar22.4pct = (espar22 * .04) + espar22,
+         elmspar.4pct = round(espar22.4pct * (fa22ss.4pct / fa22ss.4pct))) %>%
+  rowwise() %>%
+  mutate(refcap.4pct = max(altcap22, stdcap)) %>%
+  ungroup() %>%
+  mutate(refcap.4pct = ifelse(sprev.4pct + elmspar.4pct > 0, 99999999, refcap.4pct),
+         refalo22.4pct = refalo22t,
+         refalo22.4pct = ifelse(refalo22t > refcap.4pct, refcap.4pct, refalo22.4pct),
+         refrev22.4pct = round(refalo22.4pct * awadm22)) %>%
+  select(`District Name`, number, type, refrev22.4pct)
+
+
+ajgeppu.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(bsrev.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(refrev.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(ajgened.4pct = bsrev.4pct + refrev22.4pct + hhrev + loctier1rev.4pct, # add lor tier 1 beginning FY21
+         ajgeppu.4pct = 0.0,
+         ajgeppu.4pct = ifelse(awadm22 > 0 & group == 1, round((ajgened.4pct / awadm22) * 100) / 100, ajgeppu.4pct)) %>%
+  select(`District Name`, number, type, ajgeppu.4pct)
+ 
+percentile.helper <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(ajgeppu.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(rur5.4pct = quantile(ajgeppu.4pct[eqgroup.label == "ruraleq" & ajgeppu.4pct > 0], .05, type = 1),
+         rur95.4pct = quantile(ajgeppu.4pct[eqgroup.label == "ruraleq" & ajgeppu.4pct > 0], .95, type = 1),
+         metro5.4pct = quantile(ajgeppu.4pct[eqgroup.label == "metroeq"], .05, type = 1),
+         metro95.4pct = quantile(ajgeppu.4pct[eqgroup.label == "metroeq"], .95, type = 1),
+         ajgep5.4pct = 0.0,
+         ajgep95.4pct = 0.0,
+         ajgep5.4pct = ifelse(eqgroup.label == "ruraleq", rur5.4pct,
+                         ifelse(eqgroup.label == "metroeq", metro5.4pct, ajgep5.4pct)),
+         ajgep95.4pct = ifelse(eqgroup.label == "ruraleq", rur95.4pct,
+                          ifelse(eqgroup.label == "metroeq", metro95.4pct, ajgep95.4pct)),
+         seqgap.4pct = ajgep95.4pct - ajgep5.4pct,
+         seqgap.4pct = ifelse(seqgap.4pct < 0, 0, seqgap.4pct), # clip negatives
+         deqgap.4pct = ajgep95.4pct - ajgeppu.4pct,
+         deqgap.4pct = ifelse(deqgap.4pct < 0, 0, deqgap.4pct), # clip negatives
+         eqindx.4pct = 0.0,
+         eqindx.4pct = deqgap.4pct / seqgap.4pct) %>%
+  select(`District Name`, number, type, deqgap.4pct, eqindx.4pct) 
+
+refrev_ave.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(refrev.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(refrev_eq.4pct = refrev22.4pct,
+         refrev_eq.4pct = ifelse(number == 3000, refrev_new, refrev_eq.4pct),
+         refrev_sd.4pct = sum(refrev_eq.4pct[group %in% c(1,2)]),
+         loctier1_eq.4pct = loctier1rev.4pct,
+         loctier1_eq.4pct = ifelse(number == 3000, 0, loctier1_eq.4pct),
+         locrev_sd.4pct = sum(loctier1_eq.4pct[group %in% c(1,2)]),
+         awadm_sd.4pct = sum(awadm22[group %in% c(1,2)]),
+         refrev_ave.4pct = refrev_sd.4pct / awadm_sd.4pct,
+         loc_ave.4pct = locrev_sd.4pct / awadm_sd.4pct) %>%
+  select(`District Name`, number, type, refrev_ave.4pct, loc_ave.4pct)
+
+eqrev1.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(percentile.helper, by = c("District Name", "number", "type")) %>%
+  mutate(sldalo.4pct = (80*.04) + 80,
+         eqrev1.4pct = round(awadm22 * (((14*.04)+14) + (sldalo.4pct * eqindx.4pct))),
+         eqrev1.4pct = ifelse(dist==1 & type==3 | number==625 | number==709 | deqgap.4pct==0, 0, eqrev1.4pct),
+         eqrev1_p.4pct = 0.0,
+         eqrev1_p.4pct = ifelse(group==1 & awadm22 > 0, round(eqrev1.4pct / awadm22), eqrev1_p.4pct)) %>%
+  select(`District Name`, number, type, eqrev1.4pct)
+
+eqrev2.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(refrev.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(refrev_ave.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(percentile.helper, by = c("District Name", "number", "type")) %>%
+  mutate(sst22.4pct = 100000,
+         refrev_p.4pct = 0.0,
+         refrev_p.4pct = ifelse(awadm22 > 0,  (refrev22.4pct + loctier1rev.4pct) / awadm22, refrev_p.4pct),
+         eqrev2.4pct = 0.0,
+         eqrev2.4pct = ifelse(refrev_p.4pct < ((refrev_ave.4pct + loc_ave.4pct) * 0.1), (((refrev_ave.4pct + loc_ave.4pct) * 0.1) - refrev_p.4pct) * awadm22, eqrev2.4pct),
+         eqrev2.4pct = ifelse(eqrev2.4pct > sst22.4pct, sst22.4pct, eqrev2.4pct),
+         eqrev2.4pct = ifelse(dist==1 & type==3 | number==625 | number==709 |deqgap.4pct==0, 0, eqrev2.4pct)) %>%
+  select(`District Name`, number, type, eqrev2, eqrev2.4pct)
+
+eqrev3.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(eqrev1.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev2.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(eqrev3.4pct = 0.0,
+         eqrev3.4pct = ifelse(eqgroup.label == "metroeq", (eqrev1.4pct + eqrev2.4pct) * 0.25, eqrev3.4pct),
+         eqrev3.4pct = ifelse(eqgroup.label == "ruraleq", (eqrev1.4pct + eqrev2.4pct) * 0.25, eqrev3.4pct)) %>%
+  select(`District Name`, number, type, eqrev3.4pct)
+
+eqrev4.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(percentile.helper, by = c("District Name", "number", "type")) %>%
+  mutate(eqblw95.4pct = (50*.04) + 50,
+         eqabv95.4pct = (50*.04) + 50,
+         eqrev4.4pct = round(awadm22 * eqblw95.4pct),
+         eqrev4.4pct = ifelse(deqgap.4pct == 0,round(awadm22 * eqabv95.4pct), eqrev4.4pct)) %>%
+  select(`District Name`, number, type, eqrev4.4pct)
+
+eqrev.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(eqrev1.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev2.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev3.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev4.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(eqrev.4pct = eqrev1.4pct + eqrev2.4pct + eqrev3.4pct + eqrev4.4pct) %>%
+  select(`District Name`, number, type, eqrev.4pct)
+
+eqaid.4pct <- original %>%
+  left_join(eqrev.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(eq_eq_factor.4pct = (510000*.04)+510000,
+         eqlvy.4pct = 0.0,
+         eqlvy.4pct = ifelse(wadm22 > 0 & group == 1, round(eqrev.4pct * ((rmkv19 / wadm22) / eq_eq_factor.4pct)), eqlvy.4pct),
+         eqlvy.4pct = ifelse(eqlvy.4pct > eqrev.4pct, eqrev.4pct, eqlvy.4pct),
+         eqaid.4pct = eqrev.4pct - eqlvy.4pct) %>%
+  select(`District Name`, number, type, eqaid.4pct)
+
+penrev.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(penrev.4pct = penrev) %>%
+  select(`District Name`, number,  type, penrev.4pct)
+
+optadjfa.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(tsparrev.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         optadjin.4pct = 0.0,
+         optadjin.4pct = 0.0,
+         optbasch.4pct = round((clwadm22 + mclwadm22) * fa22.4pct * trapct),
+         optsrsch.4pct = round((clwadm22 + mclwadm22) * tsparaln.4pct),
+         optextch.4pct = 0.0,
+         optadjch.4pct = optbasch.4pct + optextch.4pct + optsrsch.4pct,
+         optadjfa.4pct = round(cfwadm22 * -fa22.4pct),
+         optadjfa.4pct = ifelse(type == 70, round(0 * fa22.4pct / fa22.4pct), optadjfa.4pct),
+         optadjfa.4pct = ifelse(type == 90, round(641313.36 * fa22.4pct / fa22.4pct), optadjfa.4pct),
+         optadj.4pct = optadjin.4pct + optadjch.4pct + optadjfa.4pct) %>%
+  select(`District Name`, number, type, optadj.4pct)
+
+master.4pct <- bsrev.4pct %>%
+  left_join(exdayr.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(gtrev22.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(smlrev.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(decrev.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(afdc22.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(totlep.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(totspar.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(cexaid.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqaid.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(hhaid.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(tsparrev.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(optadjfa.4pct, by = c("District Name", "number", "type" )) %>%
+  left_join(penrev.4pct, by = c("District Name", "number", "type" )) %>%
+  select(1:8, 10:16, 18:20) %>%
+  gather(key = "categories", value = "revenue.4pct", 4:18 ) %>%
+  mutate(categories = str_sub(categories, 1, -6),
+         revenue.4pct = ifelse(is.na(revenue.4pct), 0, revenue.4pct)) 
+
+```
+
+```{r 4% basic revenue only}
+bsrev.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         bsrev.bsrevonly.4pct = round(awadm22 * fa22.4pct)) %>%
+  select(`District Name`, number, type, bsrev.bsrevonly.4pct)
+
+exdayr.bsrevonly.4pct <- original %>%
+  mutate(exdayr.bsrevonly.4pct = exdayr) %>%
+  select(`District Name`, number, type, exdayr.bsrevonly.4pct)
+
+gtrev22.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(gtrev.bsrevonly.4pct = gtrev) %>%
+  select(`District Name`, number, type, gtrev.bsrevonly.4pct)
+
+smlrev.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(smlrev.bsrevonly.4pct = smlrev) %>%
+  select(`District Name`, number, type, smlrev.bsrevonly.4pct)
+
+decrev.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.bsrevonly.4pct = (fa22 * .04) + fa22,
+         decalo.bsrevonly.4pct = round(fa22.bsrevonly.4pct * 0.28),
+         declpu.bsrevonly.4pct = awadm21 - awadm22,
+         declpu.bsrevonly.4pct = ifelse(declpu.bsrevonly.4pct < 0, 0, declpu.bsrevonly.4pct),
+         decrev.bsrevonly.4pct = round(decalo.bsrevonly.4pct * declpu.bsrevonly.4pct),
+         decrev.bsrevonly.4pct = ifelse(awadm22 == 0, 0, decrev.bsrevonly.4pct)) %>%
+  select(`District Name`, number, type, decrev.bsrevonly.4pct)
+
+locaid.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(loctier1rev.bsrevonly.4pct = loctier1rev,
+         locaid.bsrevonly.4pct = locaid) %>%
+  select(`District Name`, number, type, loctier1rev.bsrevonly.4pct, locaid.bsrevonly.4pct)
+
+afdc22.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(afdc22.bsrevonly.4pct = (afdc22 * .04) + afdc22) %>%
+  select(`District Name`, number, type, afdc22.bsrevonly.4pct)
+
+totlep.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(totlep.bsrevonly.4pct = totlep) %>%
+  select(`District Name`, number, type, totlep.bsrevonly.4pct)
+
+totspar.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         fa22ss.4pct = fa22.4pct - 530,
+         sprevini.4pct = round(isoftr * admftr * sadmsv22 * fa22ss.4pct - 0),
+         mspar22.4pct = round(mspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         hhspar22.4pct = round(hhspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         sprev.4pct = sprevini.4pct,
+         sprev.4pct = ifelse(mspar22.4pct > sprevini.4pct, mspar22.4pct, sprev.4pct),
+         sprev.4pct = ifelse(hhspar22.4pct > sprevini.4pct, hhspar22.4pct, sprev.4pct),
+         espar22.4pct = espar22,
+         elmspar.4pct = round(espar22.4pct * (fa22ss.4pct / fa22ss.4pct)),
+         minspar.4pct = sprev.4pct + elmspar.4pct,
+         totspar.bsrevonly.4pct = minspar.4pct,
+         totspar.bsrevonly.4pct = ifelse(closedblg > 0 & srsrev21 > minspar.4pct, srsrev21, totspar.bsrevonly.4pct),
+         srsrev22.bsrevonly.4pct = totspar.bsrevonly.4pct) %>%
+  select(`District Name`, number, type,  totspar.bsrevonly.4pct)
+  
+
+cexaid.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(cexaid.bsrevonly.4pct = cexaid) %>%
+  select(`District Name`, number, type,  cexaid.bsrevonly.4pct)
+
+tsparrev.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         fa22ts.4pct = fa22.4pct,
+         tsparal.4pct = ((fa22ts.4pct * 0.141 * trsindex**0.26 * trdindex**0.13) -(fa22ts.4pct * trapct)),
+         tsparal.4pct = ifelse(tsparal.4pct < 0, 0, tsparal.4pct), #if less than zero, return zero
+         bastrans.4pct = round((fa22ts.4pct * trapct) * awadm22),
+         tsparrev1.4pct = round(tsparal.4pct * awadm22),
+         tsparrev2.4pct = 0,
+         tottrarev.4pct = tottrarev22) %>%
+  rowwise() %>%
+  mutate(transex.4pct = min(transex21, transex20 * 1.05)) %>%
+  ungroup() %>%
+  mutate(tsparrev2.4pct = (transex.4pct - tottrarev.4pct) * 0.182,
+         tsparrev2.4pct = ifelse(tsparrev2.4pct < 0, 0, tsparrev2.4pct),
+         tsparrev.bsrevonly.4pct = tsparrev1.4pct + tsparrev2.4pct,
+         tsparaln.bsrevonly.4pct = 0,
+         tsparaln.bsrevonly.4pct = ifelse(awadm22 > 0 & group==1, (tsparrev2.4pct / awadm22) + tsparal.4pct, tsparaln.bsrevonly.4pct)) %>%
+  select(`District Name`, number, type, tsparaln.bsrevonly.4pct, tsparrev.bsrevonly.4pct)
+
+hhaid.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(hhaid.bsrevonly.4pct = hhaid) %>%
+  select(`District Name`, number, type, hhaid.bsrevonly.4pct)
+
+refrev.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(refcap.4pct = max(altcap22, stdcap)) %>%
+  ungroup() %>%
+  mutate(fa22.4pct = (fa22 * .04) + fa22,
+         fa22ss.4pct = fa22.4pct - 530,
+         sprevini.4pct = round(isoftr * admftr * sadmsv22 * fa22ss.4pct - 0),
+         mspar22.4pct = round(mspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         hhspar22.4pct = round(hhspar22 * (fa22ss.4pct / fa22ss.4pct)),
+         sprev.4pct = sprevini.4pct,
+         sprev.4pct = ifelse(mspar22.4pct > sprevini.4pct, mspar22.4pct, sprev.4pct),
+         sprev.4pct = ifelse(hhspar22.4pct > sprevini.4pct, hhspar22.4pct, sprev.4pct),
+         espar22.4pct = espar22,
+         elmspar.4pct = round(espar22.4pct * (fa22ss.4pct / fa22ss.4pct))) %>%
+  rowwise() %>%
+  mutate(refcap.4pct = max(altcap22, stdcap)) %>%
+  ungroup() %>%
+  mutate(refcap.4pct = ifelse(sprev.4pct + elmspar.4pct > 0, 99999999, refcap.4pct),
+         refalo22.4pct = refalo22t,
+         refalo22.4pct = ifelse(refalo22t > refcap.4pct, refcap.4pct, refalo22.4pct),
+         refrev22.bsrevonly.4pct = round(refalo22.4pct * awadm22)) %>%
+  select(`District Name`, number, type, refrev22.bsrevonly.4pct)
+
+
+ajgeppu.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(bsrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(refrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(ajgened.bsrevonly.4pct = bsrev.bsrevonly.4pct + refrev22.bsrevonly.4pct + hhrev + loctier1rev.bsrevonly.4pct, # add lor tier 1 beginning FY21
+         ajgeppu.bsrevonly.4pct = 0.0,
+         ajgeppu.bsrevonly.4pct = ifelse(awadm22 > 0 & group == 1, round((ajgened.bsrevonly.4pct / awadm22) * 100) / 100, ajgeppu.bsrevonly.4pct)) %>%
+  select(`District Name`, number, type, ajgeppu.bsrevonly.4pct)
+ 
+percentile.helper.bsrevonly <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(ajgeppu.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(rur5.bsrevonly.4pct = quantile(ajgeppu.bsrevonly.4pct[eqgroup.label == "ruraleq" & ajgeppu.bsrevonly.4pct > 0], .05, type = 1),
+         rur95.bsrevonly.4pct = quantile(ajgeppu.bsrevonly.4pct[eqgroup.label == "ruraleq" & ajgeppu.bsrevonly.4pct > 0], .95, type = 1),
+         metro5.bsrevonly.4pct = quantile(ajgeppu.bsrevonly.4pct[eqgroup.label == "metroeq"], .05, type = 1),
+         metro95.bsrevonly.4pct = quantile(ajgeppu.bsrevonly.4pct[eqgroup.label == "metroeq"], .95, type = 1),
+         ajgep5.bsrevonly.4pct = 0.0,
+         ajgep95.bsrevonly.4pct = 0.0,
+         ajgep5.bsrevonly.4pct = ifelse(eqgroup.label == "ruraleq", rur5.bsrevonly.4pct,
+                         ifelse(eqgroup.label == "metroeq", metro5.bsrevonly.4pct, ajgep5.bsrevonly.4pct)),
+         ajgep95.bsrevonly.4pct = ifelse(eqgroup.label == "ruraleq", rur95.bsrevonly.4pct,
+                          ifelse(eqgroup.label == "metroeq", metro95.bsrevonly.4pct, ajgep95.bsrevonly.4pct)),
+         seqgap.bsrevonly.4pct = ajgep95.bsrevonly.4pct - ajgep5.bsrevonly.4pct,
+         seqgap.bsrevonly.4pct = ifelse(seqgap.bsrevonly.4pct < 0, 0, seqgap.bsrevonly.4pct), # clip negatives
+         deqgap.bsrevonly.4pct = ajgep95.bsrevonly.4pct - ajgeppu.bsrevonly.4pct,
+         deqgap.bsrevonly.4pct = ifelse(deqgap.bsrevonly.4pct < 0, 0, deqgap.bsrevonly.4pct), # clip negatives
+         eqindx.bsrevonly.4pct = 0.0,
+         eqindx.bsrevonly.4pct = deqgap.bsrevonly.4pct / seqgap.bsrevonly.4pct) %>%
+  select(`District Name`, number, type, deqgap.bsrevonly.4pct, eqindx.bsrevonly.4pct) 
+
+refrev_ave.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(refrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(refrev_eq.bsrevonly.4pct = refrev22.bsrevonly.4pct,
+         refrev_eq.bsrevonly.4pct = ifelse(number == 3000, refrev_new, refrev_eq.bsrevonly.4pct),
+         refrev_sd.bsrevonly.4pct = sum(refrev_eq.bsrevonly.4pct[group %in% c(1,2)]),
+         loctier1_eq.bsrevonly.4pct = loctier1rev.bsrevonly.4pct,
+         loctier1_eq.bsrevonly.4pct = ifelse(number == 3000, 0, loctier1_eq.bsrevonly.4pct),
+         locrev_sd.bsrevonly.4pct = sum(loctier1_eq.bsrevonly.4pct[group %in% c(1,2)]),
+         awadm_sd.bsrevonly.4pct = sum(awadm22[group %in% c(1,2)]),
+         refrev_ave.bsrevonly.4pct = refrev_sd.bsrevonly.4pct / awadm_sd.bsrevonly.4pct,
+         loc_ave.bsrevonly.4pct = locrev_sd.bsrevonly.4pct / awadm_sd.bsrevonly.4pct) %>%
+  select(`District Name`, number, type, refrev_ave.bsrevonly.4pct, loc_ave.bsrevonly.4pct)
+
+eqrev1.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(percentile.helper.bsrevonly, by = c("District Name", "number", "type")) %>%
+  mutate(sldalo.bsrevonly.4pct = 80,
+         eqrev1.bsrevonly.4pct = round(awadm22 * (14 + (sldalo.bsrevonly.4pct * eqindx.bsrevonly.4pct))),
+         eqrev1.bsrevonly.4pct = ifelse(dist==1 & type==3 | number==625 | number==709 | deqgap.bsrevonly.4pct==0, 0, eqrev1.bsrevonly.4pct),
+         eqrev1_p.bsrevonly.4pct = 0.0,
+         eqrev1_p.bsrevonly.4pct = ifelse(group==1 & awadm22 > 0, round(eqrev1.bsrevonly.4pct / awadm22), eqrev1_p.bsrevonly.4pct)) %>%
+  select(`District Name`, number, type, eqrev1.bsrevonly.4pct)
+
+eqrev2.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(refrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(refrev_ave.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(percentile.helper.bsrevonly, by = c("District Name", "number", "type")) %>%
+  mutate(sst22.bsrevonly.4pct = 100000,
+         refrev_p.bsrevonly.4pct = 0.0,
+         refrev_p.bsrevonly.4pct = ifelse(awadm22 > 0,  (refrev22.bsrevonly.4pct + loctier1rev.bsrevonly.4pct) / awadm22, refrev_p.bsrevonly.4pct),
+         eqrev2.bsrevonly.4pct = 0.0,
+         eqrev2.bsrevonly.4pct = ifelse(refrev_p.bsrevonly.4pct < ((refrev_ave.bsrevonly.4pct + loc_ave.bsrevonly.4pct) * 0.1), (((refrev_ave.bsrevonly.4pct + loc_ave.bsrevonly.4pct) * 0.1) - refrev_p.bsrevonly.4pct) * awadm22, eqrev2.bsrevonly.4pct),
+         eqrev2.bsrevonly.4pct = ifelse(eqrev2.bsrevonly.4pct > sst22.bsrevonly.4pct, sst22.bsrevonly.4pct, eqrev2.bsrevonly.4pct),
+         eqrev2.bsrevonly.4pct = ifelse(dist==1 & type==3 | number==625 | number==709 |deqgap.bsrevonly.4pct==0, 0, eqrev2.bsrevonly.4pct)) %>%
+  select(`District Name`, number, type, eqrev2, eqrev2.bsrevonly.4pct)
+
+eqrev3.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(eqrev1.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev2.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(eqrev3.bsrevonly.4pct = 0.0,
+         eqrev3.bsrevonly.4pct = ifelse(eqgroup.label == "metroeq", (eqrev1.bsrevonly.4pct + eqrev2.bsrevonly.4pct) * 0.25, eqrev3.bsrevonly.4pct),
+         eqrev3.bsrevonly.4pct = ifelse(eqgroup.label == "ruraleq", (eqrev1.bsrevonly.4pct + eqrev2.bsrevonly.4pct) * 0.25, eqrev3.bsrevonly.4pct)) %>%
+  select(`District Name`, number, type, eqrev3.bsrevonly.4pct)
+
+eqrev4.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(percentile.helper.bsrevonly, by = c("District Name", "number", "type")) %>%
+  mutate(eqblw95.bsrevonly.4pct = 50,
+         eqabv95.bsrevonly.4pct = 50,
+         eqrev4.bsrevonly.4pct = round(awadm22 * eqblw95.bsrevonly.4pct),
+         eqrev4.bsrevonly.4pct = ifelse(deqgap.bsrevonly.4pct == 0,round(awadm22 * eqabv95.bsrevonly.4pct), eqrev4.bsrevonly.4pct)) %>%
+  select(`District Name`, number, type, eqrev4.bsrevonly.4pct)
+
+eqrev.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(eqrev1.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev2.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev3.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqrev4.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(eqrev.bsrevonly.4pct = eqrev1.bsrevonly.4pct + eqrev2.bsrevonly.4pct + eqrev3.bsrevonly.4pct + eqrev4.bsrevonly.4pct) %>%
+  select(`District Name`, number, type, eqrev.bsrevonly.4pct)
+
+eqaid.bsrevonly.4pct <- original %>%
+  left_join(eqrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(eq_eq_factor.bsrevonly.4pct = 510000,
+         eqlvy.bsrevonly.4pct = 0.0,
+         eqlvy.bsrevonly.4pct = ifelse(wadm22 > 0 & group == 1, round(eqrev.bsrevonly.4pct * ((rmkv19 / wadm22) / eq_eq_factor.bsrevonly.4pct)), eqlvy.bsrevonly.4pct),
+         eqlvy.bsrevonly.4pct = ifelse(eqlvy.bsrevonly.4pct > eqrev.bsrevonly.4pct, eqrev.bsrevonly.4pct, eqlvy.bsrevonly.4pct),
+         eqaid.bsrevonly.4pct = eqrev.bsrevonly.4pct - eqlvy.bsrevonly.4pct) %>%
+  select(`District Name`, number, type, eqaid.bsrevonly.4pct)
+
+penrev.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  mutate(penrev.bsrevonly.4pct = penrev) %>%
+  select(`District Name`, number,  type, penrev.bsrevonly.4pct)
+
+optadjfa.bsrevonly.4pct <- original %>%
+  filter(group %in% c(1,4)) %>%
+  left_join(tsparrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  mutate(fa22.4pct = (fa22*.04) + fa22,
+         optadjin.bsrevonly.4pct = 0.0,
+         optadjin.bsrevonly.4pct = 0.0,
+         optbasch.bsrevonly.4pct = round((clwadm22 + mclwadm22) * fa22.4pct * trapct),
+         optsrsch.bsrevonly.4pct = round((clwadm22 + mclwadm22) * tsparaln.bsrevonly.4pct),
+         optextch.bsrevonly.4pct = 0.0,
+         optadjch.bsrevonly.4pct = optbasch.bsrevonly.4pct + optextch.bsrevonly.4pct + optsrsch.bsrevonly.4pct,
+         optadjfa.bsrevonly.4pct = round(cfwadm22 * -fa22.4pct),
+         optadjfa.bsrevonly.4pct = ifelse(type == 70, round(0 * fa22.4pct / fa22.4pct), optadjfa.bsrevonly.4pct),
+         optadjfa.bsrevonly.4pct = ifelse(type == 90, round(641313.36 * fa22.4pct / fa22.4pct), optadjfa.bsrevonly.4pct),
+         optadj.bsrevonly.4pct = optadjin.bsrevonly.4pct + optadjch.bsrevonly.4pct + optadjfa.bsrevonly.4pct) %>%
+  select(`District Name`, number, type, optadj.bsrevonly.4pct)
+
+master.bsrevonly.4pct <- bsrev.bsrevonly.4pct %>%
+  left_join(exdayr.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(gtrev22.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(smlrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(decrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(locaid.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(afdc22.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(totlep.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(totspar.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(cexaid.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(eqaid.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(hhaid.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(tsparrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(optadjfa.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  left_join(penrev.bsrevonly.4pct, by = c("District Name", "number", "type")) %>%
+  select(1:8, 10:16, 18:20) %>%
+  gather(key = "categories", value = "revenue.bsrevonly.4pct", 4:18 ) %>%
+  mutate(categories = str_sub(categories, 1, -16),
+         categories = trimws(categories, which = "both"),
+         revenue.bsrevonly.4pct = ifelse(is.na(revenue.bsrevonly.4pct), 0, revenue.bsrevonly.4pct))
+
+
+```
+
+```{r district join}
+district.join <- original %>%
+  select(`District Name`, number, type, group, `County Name`, countyfp, Dem_Desc, planning.region, edr)
+```
+
+# 4% increase across all components - overview
+
+There are multiple ways in which legislators can change the general education revenue formula. However, it is typical that legislators will increase difference funding mechanisms by percentages. For example, the legislature can increase the basic education revenue by 4%. In FY22 that would mean the revenue would jump from `r filter(original, number == 6) %>% select(fa22)` to `r filter(original, number == 6) %>% select(fa22) %>% mutate(fa22.4pct = (fa22 * .04) + fa22) %>% select(fa22.4pct)`.
+
+Interestingly, other components of the general education revenue formula are dependent on the the basic education revenue value. For example, the declining enrollment component provides additional revenues for districts with decreasing enrollment by providing 28% of the basic education revenue value multiplied by the difference between FY22 and FY21 APUs. The components that are linked to the basic education revenue component are;
+
+* Declining enrollment
+* Compensatory
+* Sparsity, 
+* Transportation sparsity, and
+* Options adjustment.
+
+On the flip side of all this, the legislature could also choose other elements to adjust, such as increasing the gifted and talented revenue from $13 to $14 per APU. 
+
+In this analysis, we are going to keep it simple in order to see what a 4% increase across all the elements within each component to determine what has the most impact and if there's a difference in the geography and type of school.
+
+The following is a list of all the components and how each one was adjusted by 4%. 
+
+<br>
+
+**Basic education revenue**
+
+The basic education revenue category provides a base amount of revenue per adjusted pupil units to each school district.
+
+A 4% would bring the revenue from $6,728 to `r dollar((6728*.04)+6728)`.
+
+<br>
+
+**Extended time**
+
+This program allows a school district to count a student who participates in extended programming for up to an additional 0.2 students in ADM for the time the student spends in summer school, etc…. The allowance is $5,117 X the district’s extended time adjusted pupil units.
+
+A 4% increase would bring the revenue from $5,117 to `r dollar((5117*.04)+5117)`.
+
+<br>
+
+**Gifted and talented**
+
+A school district receives $13 per pupil unit for gifted and talented programming. $13 X adjusted pupil units. Must be spent on gifted and talented students.
+
+A 4% increase would bring the revenue from $13 to `r dollar((13*.04) + 13)`. 
+
+<br>
+
+**Small schools**
+
+A school district that serves less than 960 pupil units is eligible for small schools revenue equal to $544 X the district’s adjusted pupil units, times the ratio of 960 less the district’s adjusted pupil units to 960.
+
+A 4% increase would bring the revenue from $544 to `r dollar((544*.04) + 544)`.
+
+In addition, a few schools received a dollar amount that wasn't in the usual $544 x APU ratio due to having multiple schools in the district. A few of the schools in these districts qualified for small schools funding. Each of these were also increased.
+
+* District 318, from $70,189.06 to  `r dollar((70189.06*.04) + 70189)`,
+* District 363, from $115,058.66 to `r dollar((115058.66 * .04) + 115058.66)`,
+* District 381, from $241,346.69 to `r dollar((241346.69 * .04) + 241346.69)`,
+* District 2142, from $404,349.22 to `r dollar((404349.22 * .04) + 404349.22)`.
+
+<br>
+
+**Declining enrollment**
+
+Revenue equals the greater of zero or 28% of the formula allowance for that year and the difference between adjusted pupil units for the current year and the adjusted pupil units for the previous year.
+
+A 4% increase would bring the revenue from $1,884 to `r dollar((1884 *.04)+1884)`.
+
+<br>
+
+**Local optional aid**
+
+This revenue is meant to help equalize property rich schools districts and property poor school districts by providing extra aid to property poor districts. This is done by calculating the revenue, then the levy with equalizing factors, and then aid is distributed by subtracting the levy from the revenue.
+
+* Revenue
+    + Tier 1: from $300 to `r dollar((300*.04)+300)`
+    + Tier 2: $424 to `r dollar((424*.04) + 424)`
+* Levy equalizing factors
+    + Tier 1: $880,000 to `r dollar((880000*.04) + 880000)`
+    + Tier 2: $510,000 to `r dollar((510000*.04) + 510000)`
+    
+<br>
+
+**Compensatory**
+
+Compensatory is a site-based revenue and at least 50% of the revenue must be distributed to qualifying programs at each site. The revenue must be used to meet the educational needs of pupils whose progress toward meeting state or local content or performance standards is below the level that is appropriate for learners of their age. This revenue must be put into a separate account. Revenue increases as the number of compensatory pupil units goes up, which is driven by the number of free and reduced price meals.
+
+A pupil is counted as compensatory pupil if the pupil is eligible for free or reduced priced meals, which is set by the Federal government at 130% and 185 % of the federal poverty guidelines.
+
+* Compensatory Revenue = (Basic Formula Allowance - $839) x .6 x Compensatory Pupil Units
+* Compensatory Pupil Units = (free lunch students + .5 x reduced lunch students) x the less of:
+one, or (free lunch students + .5 x reduced lunch students) / building ADM / .8
+
+A 4% increase in this funding is linked to the basic education revenue so it would be $5,889 to `r dollar((5889*.04)+5889)`. However, we were not provided the number of students that qualified for free or reduced lunch at each district but rather just given the total compensatory value for each school district. So in this case, we just increased the total dollar amount by 4%.
+
+<br>
+
+**English learners**
+
+English learner revenue: a school district with at least one student eligible for EL services has a statutorily assigned minimum EL pupil count of 20. In addition, a district received more english learner revenue depending on the concentration of english learner students within the district.
+
+A 4% increase for the basic EL revenue would go from $704 to `r dollar((704*.04) + 704)`.
+
+A 4% increase for EL concentration revenue would go from $250 to `r dollar((250*.04) + 250)`.
+
+<br>
+
+**Sparsity**
+
+This is a vertical funding mechanism meant to shore up support for school districts that serve small student population for an area not served by other schools. It acknowledges the challenges associated with the lack of economies of scale to providing education.
+
+There are three parts to this revenue;
+
+* Secondary school sparsity
+* Elementary school sparsity
+* Sparsity guarantee
+
+The two main components that can be changed are the following;
+
+* Basic education revenue - $530: a 4% increase goes from $6,198.00 to `r dollar((6198*.04)+6198)`.
+* Elementary sparsity revenue: the total revenue received by each school district was provided so we just multiplied the total revenue by 4%.
+
+<br>
+
+**Operating Capital aid**
+
+Operating capital revenue must be reserved and used for equipment and facility needs. The computation is, the sum of $79 per pupil unit and the product of $109 per pupil unit and the district’s average building age index. The age index is called the maintenance cost index (MCI) and is calculated as follows;
+
+* MCI = (weighted square footage of buildings) / (Unweighted square footage of buildings)
+* The weighted square food is the buildings square footage times the lesser of 1.5 or the sum of 1 + (the age of each building or addition / 100).
+
+Operating capital revenue is provided through an equalized aid and levy and is computed as follows;
+
+* Operating capital revenue - [$79 + (MCI x $109)] x adjusted pupil units
+* Operating capital levy = Operating capital revenue x the less of 1 or (adjusted net tax capacity /Adjusted Pupil Units) / $23,885
+* Operating capital aid = Operating Capital Revenue - Operating Capital Levy
+
+The following adjustments were made for this scenario;
+
+A 4% increase of $79 is `r dollar((79*.04) + 79)`.
+
+A 4% increase of $109 is `r dollar((109*.04) + 109)`.
+
+A 4% increase for the equalizing factor goes from $23,885 to `r dollar((23885 * .04) + 23885)`.
+
+<br>
+
+**Transportation sparsity**
+
+Transportation sparsity revenue provides revenue to school districts that have a relatively low ratio of pupils to the square mile area of the school district.
+
+the primary change here is the increase in the basic education revenue.
+
+A 4% would bring the revenue from $6,728 to `r dollar((6728*.04)+6728)`.
+
+<br>
+
+**Equity**
+
+Equity revenue is designed to provide additional revenue to districts with lower amounts of referendum revenue. Calculations for this revenue is broken into two regions - the 7-county metro and greater Minnesota. The formula consists of three parts.
+
+1. Basic equity revenue: equals the product of 125% x [$14 +($80 x district’s equity index)] x adjusted pupil units
+    + Equity index = 1 - (basic formula allowance + local optional revenue + referendum revenue) / per pupil amount for the district at the 95th percentile in that region
+    + School districts of the first class (Minneapolis, St. Paul, and Duluth) don’t receive basic equity revenue
+2. Low referendum revenue: district has per pupil referendum revenue less than 10% of the statewide average receives an additional equity amount equal to the lesser of $100,000 or the difference between 10% of the statewide average referendum revenue and the district’s current amount of referendum revenue.
+3. Supplemental equity revenue: all school districts receive $50 per pupil unit.
+
+Equity aid and levy: A district’s total equity revenue is equalized on referendum market value using an equalizing factor of $510,000.
+
+The primary change in equity funding in this scenario is;
+
+* Basic education revenue: from $6,728 to `r dollar((6728*.04)+6728)`
+* Updated revenue (4% scenario) from small schools, location optional referendum, transition revenue, and referendum revenue. 
+* A 4% increase to $14 is `r dollar((14*.04)+14)`.
+* A 4% increase to $80 is `r dollar((80*.04)+80)`.
+* A 4% increase to $50 is `r dollar((50*.04) + 50)`.
+* A 4% increase to the equalizing factor goes from $500,000 to `r dollar((500000*.04) + 500000)`.
+
+<br>
+
+**Transition**
+
+No changes were made to this revenue.
+
+<br>
+
+**Pension adjustment**
+
+No changes were made to the pension adjustment.
+
+<br>
+
+**Options adjustment**
+
+The change here was in the basic education revenue allotment.
+
+A 4% increase goes from $6728 to `r dollar((6728*.04)+6728)`.
+
+<br>
+
+# Comparing scenarios{.tabset}
+
+The primary question is what impact does tweaking only specific components of the general education revenue formula vs. increasing the entire formula the same amount. That's what we will analyze below.
+
+The table below provides each school district and compares the funding they would receive if only the basic education revenue component was increased vs. increasing the entire general education formula. Also included are the rank in terms of the difference each scenario makes over the original funding the district received. For example, increasing the entire formula by 4% increases the revenue for Mahnomen Public School districts by 5.43% which is the second highest among all schools, while only increasing the basic education component by 4% increases that districts revenue by 4.95% which is third highest among all schools.
+
+It's a bit difficult to determine what, if any, patterns exist with so many schools.But, the rankings do look to be relatively close to each other. 
+
+<br>
+
+```{r comparing change between scenarios district}
+comp.total.rev.change.districts <- master.4pct %>%
+  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
+            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
+            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(total.rev.original > 0) %>%
+  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
+         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
+         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
+         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
+  filter(pct.diff.original.4pct.all > 0,
+         pct.diff.original.4pct.bsrev > 0) %>%
+  arrange(desc(pct.diff.original.4pct.all)) %>%
+  mutate(rank.diff.4pct.all = seq(n())) %>%
+  arrange(desc(pct.diff.original.4pct.bsrev)) %>%
+  mutate(rank.diff.4pct.bsrev = seq(n()))
+
+datatable(comp.total.rev.change.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:11)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(4:7, "$") %>%
+  formatPercentage(8, digits = 4) %>%
+  formatCurrency(9, "$", digits = 2) %>%
+  formatPercentage(10, digits = 2)
+```
+
+<br>
+
+Since it's a bit difficult to tell with the table, let's check to see what the range is of the percentage changes. Below is a chart that provides the percentage change for each district for each scenario.
+
+For the increase of 4% across the entire formula, the highest change in revenue is 6.8% for Cook County Public Schools and the lowest is 3.1% for Greenbush-Middle River School district with 3.1%. This is a range of 3.7 percentage points. For the 4% increase for only the basic education revenue component, the highest is 6.7% for Cook County Public Schools and 2.6% for Greenbush. This is a range of 4.1 percentage points.
+
+<br>
+
+```{r comparing change percentage range districts}
+comp.total.rev.change.range.districts <- comp.total.rev.change.districts %>%
+  gather(key = "scenario", value = "pct.change", 8, 10)
+
+comp.total.rev.change.range.districts.plot <- ggplot(comp.total.rev.change.range.districts, aes(scenario, pct.change)) +
+  geom_hline(yintercept = 0, color = "black") +
+  geom_point_interactive(size = 5, aes(data_id = number, tooltip = paste(`District Name`, "\nTotal revenue, original: ", dollar(total.rev.original), "\nTotal revenue, 4pct all: ", dollar(total.rev.4pct.all), "\nPercent change of 4pct all from original: ", percent(pct.change, accuracy = .1), "\nTotal revenue, bsrev only: ", dollar(total.rev.4pct.bsrev), "\nPercent change of 4pct bsrev only from original: ", percent(pct.change, accuracy = .1), sep = ""))) +
+  labs(x="", y = "", color="", title = "Percent change from original funding for each scenario")+
+  scale_y_continuous(labels=scales::percent) +
+  theme_line +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.total.rev.change.range.districts.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+```
+
+<br>
+
+Next, let's check the change for public vs. charter schools.
+
+In both scenarios, public schools receive a higher bump in revenue than charter schools. If the entire formula is increased by 4%, public schools receive a 4.26% bump compared to charter schools 3.94%. If the basic education revenue component is increased by 4%, public schools receive a 3.82% bump compared to charter schools 3.66%.
+
+<br>
+
+```{r comparing change between scenarios group}
+comp.total.rev.change.group <- master.4pct %>%
+  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  group_by(group) %>%
+  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
+            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
+            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(total.rev.original > 0) %>%
+  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
+         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
+         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
+         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
+  filter(pct.diff.original.4pct.all > 0,
+         pct.diff.original.4pct.bsrev > 0) %>%
+  arrange(desc(pct.diff.original.4pct.all)) %>%
+  mutate(rank.diff.4pct.all = seq(n())) %>%
+  arrange(desc(pct.diff.original.4pct.bsrev)) %>%
+  mutate(rank.diff.4pct.bsrev = seq(n())) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, 2:10)
+
+datatable(comp.total.rev.change.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:5, "$") %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7, "$", digits = 2) %>%
+  formatPercentage(8, digits = 2)
+```
+
+<br>
+
+Next, let's compare RUCA categories and geographies.
+
+<br>
+
+## RUCA
+
+<br>
+
+```{r comparing change between scenarios ruca}
+comp.total.rev.change.ruca <- master.4pct %>%
+  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  group_by(Dem_Desc) %>%
+  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
+            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
+            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(total.rev.original > 0) %>%
+  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
+         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
+         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
+         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
+  filter(pct.diff.original.4pct.all > 0,
+         pct.diff.original.4pct.bsrev > 0) %>%
+  arrange(desc(pct.diff.original.4pct.all)) %>%
+  mutate(rank.diff.4pct.all = seq(n())) %>%
+  arrange(desc(pct.diff.original.4pct.bsrev)) %>%
+  mutate(rank.diff.4pct.bsrev = seq(n())) 
+
+datatable(comp.total.rev.change.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:5, "$") %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7, "$", digits = 2) %>%
+  formatPercentage(8, digits = 2)
+```
+
+<br>
+
+## Planning Region
+
+<br>
+
+<br>
+
+## EDR
+
+<br>
+
+<br>
+
+

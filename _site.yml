@@ -44,6 +44,8 @@ navbar:
       href: scenarios_1pct.html
     - text: "Scenario - 4%"
       href: scenarios_4pct.html
+    - text: "Analysis"
+      href: analysis.html
 output:
   html_document:
     css: "styles.css"

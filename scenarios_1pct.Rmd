@@ -472,6 +472,11 @@ master.1pct <- bsrev.1pct %>%
          revenue.1pct = ifelse(is.na(revenue.1pct), 0, revenue.1pct)) 
 ```
 
+```{r master original}
+districts.join <- original %>%
+  select(`District Name`, number, type, group, awadm22, Dem_Desc, planning.region, edr, `County Name`)
+```
+
 
 <br>
 
@@ -1877,6 +1882,13 @@ If you sort the table by highest difference first, a quick glance at the top ten
 apu.join <- original %>%
   select(`District Name`, number, type, awadm22) 
 
+total.rev.original.join <- original %>%
+  select(`District Name`, number, type, categories) %>%
+  gather(key = "categories", value = "revenue", 4:ncol(.)) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original = sum(revenue, na.rm = TRUE)) %>%
+  ungroup()
+
 total.rev.apu.district <- master.1pct %>%
   left_join(master.bsrevonly.1pct, by = c("District Name", "number", "type", "categories")) %>%
   group_by(`District Name`, number, type) %>%
@@ -1887,14 +1899,22 @@ total.rev.apu.district <- master.1pct %>%
   mutate(total.rev.1pct.apu = total.rev.1pct / awadm22,
          total.rev.bsrevonly.1pct.apu = total.rev.bsrevonly.1pct / awadm22,
          difference.apu = total.rev.1pct.apu - total.rev.bsrevonly.1pct.apu) %>%
-  filter(awadm22 > 0)
+  filter(awadm22 > 0) %>%
+  left_join(total.rev.original.join, by = c("District Name", "number", "type")) %>%
+  mutate(total.rev.original.apu = total.rev.original / awadm22) %>%
+  arrange(desc(total.rev.original.apu)) %>%
+  mutate(rank.original = seq(n())) %>%
+  arrange(desc(total.rev.1pct.apu)) %>%
+  mutate(rank.1pct.all = seq(n())) %>%
+  arrange(desc(total.rev.bsrevonly.1pct.apu)) %>%
+  mutate(rank.1pct.bsrevonly = seq(n()))
 
 datatable(total.rev.apu.district, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)),
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:11)),
                          scrollX = TRUE)) %>%
   formatCurrency(4:5, "$", digits = 2) %>%
   formatCurrency(6, "", digits = 0) %>%
-  formatCurrency(7:9, "$", digits = 2)
+  formatCurrency(7:11, "$", digits = 2)
 
 
 ```

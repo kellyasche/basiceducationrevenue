@@ -1,5 +1,5 @@
 ---
-title: "Scenario - 4%"
+title: "A better analysis"
 output:
   html_document:
     toc: true
@@ -134,7 +134,8 @@ original <- read_csv("Data/Formula/Master.csv") %>%
   mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
          planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
          edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
-         eqgroup.label = ifelse(is.na(eqgroup.label), "", eqgroup.label))
+         eqgroup.label = ifelse(is.na(eqgroup.label), "", eqgroup.label)) %>%
+  filter(group %in% c(1,4))
 
 group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
 
@@ -144,7 +145,8 @@ categories <- c("bsrev", "exdayr", "gtrev", "smlrev", "decrev", "locaid", "afdc2
 
 master.original <- original %>%
   select(`District Name`, number, type, categories) %>%
-  gather(key = "categories", value = "revenue.original", 4:17)
+  gather(key = "categories", value = "revenue.original", 4:17) 
+
 ```
 
 ```{r 4% increase scenario}
@@ -744,21 +746,80 @@ master.bsrevonly.4pct <- bsrev.bsrevonly.4pct %>%
   gather(key = "categories", value = "revenue.bsrevonly.4pct", 4:18 ) %>%
   mutate(categories = str_sub(categories, 1, -16),
          categories = trimws(categories, which = "both"),
-         revenue.bsrevonly.4pct = ifelse(is.na(revenue.bsrevonly.4pct), 0, revenue.bsrevonly.4pct))
+         revenue.bsrevonly.4pct = ifelse(is.na(revenue.bsrevonly.4pct), 0, revenue.bsrevonly.4pct)) 
 
 
 ```
+
 
 ```{r district join}
 district.join <- original %>%
-  select(`District Name`, number, type, group, `County Name`, countyfp, Dem_Desc, planning.region, edr, awadm22)
+  select(`District Name`, number, type, group, `County Name`, countyfp, Dem_Desc, planning.region, edr, awadm22) %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
 ```
 
-# 4% increase across all components - overview
+
+```{r district prop}
+prop.group <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(group) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, total.dataset.n, total.dataset.pct.n)
+
+prop.ruca <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(Dem_Desc) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.prop = total.dataset.n / sum(total.dataset.n)) 
+
+prop.pr <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(planning.region) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n))
+
+prop.edr <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(edr) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n))
+
+```
+
+<br>
+
+Okay, I will now combine everything I've learned and analyze the following questions;
+
+1. Which school district receives the largest "boost" in total funding between the two scenarios?
+    a. If there are significant differences between the scenarios, why?
+2. Which school  district receives the largest "boost" in revenue / APU for each scenario?
+    a. If there are significant differences between the scenarios, why?
+3. Do continued increases to specific scenarios compound changes?
+Essentially - if tied to inflation, will things get out of whack?
+
+The two scenarios being compared are listed in the following two sections.
+
+<br>
+
+# Overview of scenarios
+
+The general education formula was developed in order to bring fairness in eduction funding across school districts independent of where they are located (property values, etc...) while also acknowledging that some schools will cost more to operate due to location and characteristics of the district. By only focusing on increasing one element of the formula, there is risk of making funding school districts unbalanced. 
 
 There are multiple ways in which legislators can change the general education revenue formula. However, it is typical that legislators will increase difference funding mechanisms by percentages. For example, the legislature can increase the basic education revenue by 4%. In FY22 that would mean the revenue would jump from `r filter(original, number == 6) %>% select(fa22)` to `r filter(original, number == 6) %>% select(fa22) %>% mutate(fa22.4pct = (fa22 * .04) + fa22) %>% select(fa22.4pct)`.
 
-Interestingly, other components of the general education revenue formula are dependent on the the basic education revenue value. For example, the declining enrollment component provides additional revenues for districts with decreasing enrollment by providing 28% of the basic education revenue value multiplied by the difference between FY22 and FY21 APUs. The components that are linked to the basic education revenue component are;
+One advantage of only increasing the basic education revenue component is that that component is linked to a few other components. For example, the declining enrollment component provides additional revenues for districts with decreasing enrollment by providing 28% of the basic education revenue value multiplied by the difference between FY22 and FY21 APUs. The components that are linked to the basic education revenue component are;
 
 * Declining enrollment
 * Compensatory
@@ -768,7 +829,16 @@ Interestingly, other components of the general education revenue formula are dep
 
 On the flip side of all this, the legislature could also choose other elements to adjust, such as increasing the gifted and talented revenue from $13 to $14 per APU. 
 
-In this analysis, we are going to keep it simple in order to see what a 4% increase across all the elements within each component to determine what has the most impact and if there's a difference in the geography and type of school.
+I want to analyze what happens to total revenues for schools when focusing on one component vs. all components for increases. Therefore the following scenarios will be compared;
+
+1. 4% increase to all components in the formula
+2. 4% increase to the basic education revenue component only.
+
+This will help us determine if some schools benefit way more by only focusing on one component for increases rather than the entire formula.
+
+<br>
+
+## Overview of scenario 1: 4% increase for entire formula
 
 The following is a list of all the components and how each one was adjusted by 4%. 
 
@@ -951,17 +1021,91 @@ A 4% increase goes from $6728 to `r dollar((6728*.04)+6728)`.
 
 <br>
 
-# Comparing scenarios by percent increase to original revenue{.tabset}
+## Overview of scenario 2: 4% increase to basic education revenue component
 
-The primary question is what impact does tweaking only specific components of the general education revenue formula vs. increasing the entire formula the same amount. That's what we will analyze below.
+Due to the basic education revenue component being linked to other components, it's important to understand what changes.
 
-The table below provides each school district and compares the funding they would receive if only the basic education revenue component was increased vs. increasing the entire general education formula. Also included are the rank in terms of the difference each scenario makes over the original funding the district received. For example, increasing the entire formula by 4% increases the revenue for Mahnomen Public School districts by 5.43% which is the second highest among all schools, while only increasing the basic education component by 4% increases that districts revenue by 4.95% which is third highest among all schools.
-
-It's a bit difficult to determine what, if any, patterns exist with so many schools.But, the rankings do look to be relatively close to each other. 
+The following is a list of the components that are impacted by a 4% increase to only the basic education revenue component.
 
 <br>
 
-```{r comparing change between scenarios district}
+**Declining enrollment**
+
+Revenue equals the greater of zero or 28% of the formula allowance for that year and the difference between adjusted pupil units for the current year and the adjusted pupil units for the previous year.
+
+A 4% increase would bring the revenue from $1,884 to `r dollar((1884 *.04)+1884)`.
+
+<br>
+
+**Compensatory**
+
+Compensatory is a site-based revenue and at least 50% of the revenue must be distributed to qualifying programs at each site. The revenue must be used to meet the educational needs of pupils whose progress toward meeting state or local content or performance standards is below the level that is appropriate for learners of their age. This revenue must be put into a separate account. Revenue increases as the number of compensatory pupil units goes up, which is driven by the number of free and reduced price meals.
+
+A pupil is counted as compensatory pupil if the pupil is eligible for free or reduced priced meals, which is set by the Federal government at 130% and 185 % of the federal poverty guidelines.
+
+* Compensatory Revenue = (Basic Formula Allowance - $839) x .6 x Compensatory Pupil Units
+* Compensatory Pupil Units = (free lunch students + .5 x reduced lunch students) x the less of:
+one, or (free lunch students + .5 x reduced lunch students) / building ADM / .8
+
+A 4% increase in this funding is linked to the basic education revenue so it would be $5,889 to `r dollar((5889*.04)+5889)`. However, we were not provided the number of students that qualified for free or reduced lunch at each district but rather just given the total compensatory value for each school district. So in this case, we just increased the total dollar amount by 4%.
+
+<br>
+
+**Sparsity**
+
+This is a vertical funding mechanism meant to shore up support for school districts that serve small student population for an area not served by other schools. It acknowledges the challenges associated with the lack of economies of scale to providing education.
+
+There are three parts to this revenue;
+
+* Secondary school sparsity
+* Elementary school sparsity
+* Sparsity guarantee
+
+The two main components that can be changed are the following;
+
+* Basic education revenue - $530: a 4% increase goes from $6,198.00 to `r dollar((6198*.04)+6198)`.
+
+* Elementary sparsity revenue: the total revenue received by each school district was provided so we just multiplied the total elementary sparsity revenue provided by 4%.
+
+<br>
+
+**Transportation sparsity**
+
+Transportation sparsity revenue provides revenue to school districts that have a relatively low ratio of pupils to the square mile area of the school district.
+
+the primary change here is the increase in the basic education revenue.
+
+A 4% would bring the revenue from $6,728 to `r dollar((6728*.04)+6728)`.
+
+<br>
+
+**Options adjustment**
+
+The change here was in the basic education revenue allotment.
+
+A 4% increase goes from $6728 to `r dollar((6728*.04)+6728)`.
+
+<br>
+
+# Analysis of largest boost: pct change from original revenue
+
+In this analysis, we are going to measure the "boost" received by each scenario from their original total revenue from the general education revenue formula, and which component of the formula drives the difference between the two scenarios. We will start with school districts, then look at public vs. charter schools, then RUCA categories, planning regions, and economic development regions.
+
+## School districts{.tabset}
+
+First, we will examine how schools districts are impacted by the increase from each scenario as a percentage of their original total funding from the general education formula in FY22.
+
+The table below provides the total original revenue received in FY22 as well as the total revenues from a 4% increase to the entire general education revenue formula and a 4% increase to the basic education revenue component only. In addition, the table provides the percent change from the original FY22 revenue for each of the scenarios, where those changes rank against their peers, as well as the percentage of the original budget lost if increasing the bsrev only vs. increasing the entire formula.
+
+What's interesting is that if you sort by `Rank of pct lost between  scenarios` you will see that the top three school districts would loss 1% 
+
+<br>
+
+### Table
+
+<br>
+
+```{r revenue increase pct original districts}
 comp.total.rev.change.districts <- master.4pct %>%
   left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
   left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
@@ -971,45 +1115,53 @@ comp.total.rev.change.districts <- master.4pct %>%
             total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
   ungroup() %>%
   filter(total.rev.original > 0) %>%
-  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
-         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
-         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
-         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
+  mutate(pct.diff.original.4pct.all = (total.rev.4pct.all - total.rev.original) / total.rev.original,
+         pct.diff.original.4pct.bsrev = (total.rev.4pct.bsrev - total.rev.original) / total.rev.original,
+         pct.gain.between.scenarios = (total.rev.4pct.all - total.rev.4pct.bsrev) / total.rev.original) %>%
   filter(pct.diff.original.4pct.all > 0,
          pct.diff.original.4pct.bsrev > 0) %>%
+  arrange(desc(pct.gain.between.scenarios)) %>%
+  mutate(rank.pct.gain.between.scenarios = seq(n())) %>%
   arrange(desc(pct.diff.original.4pct.all)) %>%
-  mutate(rank.diff.4pct.all = seq(n())) %>%
+  mutate(rank.change.4pct.all = seq(n())) %>%
   arrange(desc(pct.diff.original.4pct.bsrev)) %>%
-  mutate(rank.diff.4pct.bsrev = seq(n()))
+  mutate(rank.change.4pct.bsrev = seq(n())) %>%
+  rename(`Total rev - original` = total.rev.original,
+         `Total rev - 4pct all` = total.rev.4pct.all,
+         `Total rev - bsrev only` = total.rev.4pct.bsrev,
+         `Pct change from OG - 4pct all` = pct.diff.original.4pct.all,
+         `Pct change from OG - 4pct bsrev only` = pct.diff.original.4pct.bsrev,
+         `Percent of original gained between scenarios` = pct.gain.between.scenarios,
+         `Rank of pct gained between 2 scenarios` = rank.pct.gain.between.scenarios,
+         `Rank of change from OG - 4pct all` = rank.change.4pct.all,
+         `Rank of change from OG - 4pct bsrev` = rank.change.4pct.bsrev) %>%
+  filter(`District Name` != "Minnesota State Academies")
 
 datatable(comp.total.rev.change.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
           options = list(columnDefs = list(list(className = "dt-center", targets = 1:11)),
                          scrollX = TRUE)) %>%
-  formatCurrency(4:7, "$") %>%
-  formatPercentage(8, digits = 4) %>%
-  formatCurrency(9, "$", digits = 2) %>%
-  formatPercentage(10, digits = 2)
+  formatCurrency(4:6, "$") %>%
+  formatPercentage(7:9, digits = 4) 
+
 ```
 
 <br>
 
-Since it's a bit difficult to tell with the table, let's check to see what the range is of the percentage changes. Below is a chart that provides the percentage change for each district for each scenario.
-
-For the increase of 4% across the entire formula, the highest change in revenue is 6.8% for Cook County Public Schools and the lowest is 3.1% for Greenbush-Middle River School district with 3.1%. This is a range of 3.7 percentage points. For the 4% increase for only the basic education revenue component, the highest is 6.7% for Cook County Public Schools and 2.6% for Greenbush. This is a range of 4.1 percentage points.
+### Range
 
 <br>
 
-```{r comparing change percentage range districts}
+```{r revenue increase pct original range districts}
 comp.total.rev.change.range.districts <- comp.total.rev.change.districts %>%
-  gather(key = "scenario", value = "pct.change", 8, 10)
+  gather(key = "key", value = "pct.change", 7:9)
 
-comp.total.rev.change.range.districts.plot <- ggplot(comp.total.rev.change.range.districts, aes(scenario, pct.change)) +
-  geom_hline(yintercept = 0, color = "black") +
-  geom_point_interactive(size = 5, aes(data_id = number, tooltip = paste(`District Name`, "\nTotal revenue, original: ", dollar(total.rev.original), "\nTotal revenue, 4pct all: ", dollar(total.rev.4pct.all), "\nPercent change of 4pct all from original: ", percent(pct.change, accuracy = .1), "\nTotal revenue, bsrev only: ", dollar(total.rev.4pct.bsrev), "\nPercent change of 4pct bsrev only from original: ", percent(pct.change, accuracy = .1), sep = ""))) +
-  labs(x="", y = "", color="", title = "Percent change from original funding for each scenario")+
-  scale_y_continuous(labels=scales::percent) +
+comp.total.rev.change.range.districts.plot <- ggplot(comp.total.rev.change.range.districts, aes("Pct change", pct.change)) +
+  facet_wrap(~key, ncol = 2, scales = "free_y") +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\n", key, "\nPercent change from original: ", percent(pct.change, accuracy = .1), sep = ""))) +
+  labs(x="", y = "", color="", title = "Percent change from original funding")+
+  scale_y_continuous(labels=scales::percent)+
   theme_line +
-  theme(legend.position = "bottom",
+  theme(legend.position = "none",
         text = element_text(size = 18))
 
 girafe(ggobj = comp.total.rev.change.range.districts.plot, width_svg = 10, height_svg = 7) %>%
@@ -1017,406 +1169,294 @@ girafe(ggobj = comp.total.rev.change.range.districts.plot, width_svg = 10, heigh
                  opts_toolbar(saveaspng = FALSE),
                  opts_sizing(rescale = FALSE))
 
+tags$br()
 
+comp.total.rev.change.range.districts.table <- comp.total.rev.change.range.districts %>%
+  group_by(key) %>%
+  summarize(range = range(pct.change)) %>%
+  ungroup() %>%
+  group_by(key) %>%
+  mutate(ID = seq(n())) %>%
+  ungroup() %>%
+  spread(ID, range) %>%
+  rename(Minimum = `1`,
+         Maximum = `2`) %>%
+  mutate(Range = Maximum - Minimum)
+
+datatable(comp.total.rev.change.range.districts.table, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:3)),
+                         scrollX = TRUE)) %>%
+  formatPercentage(2:3, digits = 4) %>%
+  formatPercentage(4, digits = 4)
 ```
 
 <br>
 
-Next, let's check the change for public vs. charter schools.
+## {.unnumbered .unlisted .toc-ignore .tabset}
 
-In both scenarios, public schools receive a higher bump in revenue than charter schools. If the entire formula is increased by 4%, public schools receive a 4.26% bump compared to charter schools 3.94%. If the basic education revenue component is increased by 4%, public schools receive a 3.82% bump compared to charter schools 3.66%.
+Let's take a look to see if those schools that experience the largest "boost" from a 4% increase to basic education revenue component only to a 4% increase across the entire formula are related to whether it's a charter vs. public school, it's RUCA category, and it geographic location. We will use the top 25 school districts with the largest difference between the two scenarios.
+
+The public vs. charter school table shows that there were no charter schools in the top 25. Obviously, this means that there is a statistically significant difference since charter schools make up 36% of the entire dataset. All 25 schoool districts with the largest difference between the two scenarios are public schools.
+
+The RUCA categories also indicate a statistically significant difference between being in the top 25 and it's proportion of the total dataset. The biggest difference is the number of schools located in a town/rural mix county that are in the top 25 -  n = 13, pct = 52% compared to being only 25% of the entire dataset. The other major difference is how few school districts located in entirely urban counties are in the top 25 compared to it's proportion of the dataset - 8% vs 41% of the dataset.
+
+The planning regions indicate that Northwest, Southwest, and Southeast make up a significantly larger proportion of the top 25 compared to it's population; 36% vs. 19%, 24% vs. 15%, and 28% vs. 11%, respectively. The other regions have significantly lower proportions of the top 25.
+
+In addition, the EDR's show that the following regions have higher than expected proportions in the top 25;
+
+* EDR 10 - Southeast: 28% vs. 11%
+* EDR 4 - West Central: 16% vs. 6%
+* EDR 5 - North Central: 16% vs. 5%
+* EDR 8 - Southwest: 12% vs. 6%
+* EDR 9 - South Central: 12% vs. 7%
+
+The EDR's that had significantly lower than expected proportions in the top 25 were;
+
+* EDR 11 - 7-county metro: 4% vs. 35%
+
+Lastly, the county map shows that the location of schools that are in the top 25 are scattered throughout Greater Minnesota. 
 
 <br>
 
-```{r comparing change between scenarios group}
-comp.total.rev.change.group <- master.4pct %>%
-  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
+### Public vs. Charter
+
+```{r top boost group}
+top.boost.districts <- comp.total.rev.change.districts %>%
+  filter(`Rank of pct gained between 2 scenarios` < 26) %>%
   left_join(district.join, by = c("District Name", "number", "type")) %>%
-  group_by(group) %>%
-  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
-            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
-            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
-  ungroup() %>%
-  filter(total.rev.original > 0) %>%
-  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
-         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
-         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
-         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
-  filter(pct.diff.original.4pct.all > 0,
-         pct.diff.original.4pct.bsrev > 0) %>%
-  arrange(desc(pct.diff.original.4pct.all)) %>%
-  mutate(rank.diff.4pct.all = seq(n())) %>%
-  arrange(desc(pct.diff.original.4pct.bsrev)) %>%
-  mutate(rank.diff.4pct.bsrev = seq(n())) %>%
   left_join(group.codes, by = c("group" = "Code")) %>%
-  select(Definition, 2:10)
+  filter(group %in% c(1,4)) 
 
-datatable(comp.total.rev.change.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(2:5, "$") %>%
-  formatPercentage(6, digits = 2) %>%
-  formatCurrency(7, "$", digits = 2) %>%
-  formatPercentage(8, digits = 2)
-```
-
-<br>
-
-Next, let's compare RUCA categories and geographies.
-
-<br>
-
-## RUCA
-
-<br>
-
-```{r comparing change between scenarios ruca}
-comp.total.rev.change.ruca <- master.4pct %>%
-  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(district.join, by = c("District Name", "number", "type")) %>%
-  group_by(Dem_Desc) %>%
-  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
-            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
-            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
+top.boost.group <- top.boost.districts %>%
+  group_by(Definition) %>%
+  summarize(n = n()) %>%
   ungroup() %>%
-  filter(total.rev.original > 0) %>%
-  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
-         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
-         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
-         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
-  filter(pct.diff.original.4pct.all > 0,
-         pct.diff.original.4pct.bsrev > 0) %>%
-  arrange(desc(pct.diff.original.4pct.all)) %>%
-  mutate(rank.diff.4pct.all = seq(n())) %>%
-  arrange(desc(pct.diff.original.4pct.bsrev)) %>%
-  mutate(rank.diff.4pct.bsrev = seq(n())) 
+  mutate(pct = n / sum(n)) %>%
+  right_join(prop.group, by = "Definition") %>%
+  mutate(n = ifelse(is.na(n), 0, n),
+         pct = ifelse(is.na(pct), 0, pct),
+         prop = n / total.dataset.n)
 
-
-
-datatable(comp.total.rev.change.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
+datatable(top.boost.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
                          scrollX = TRUE)) %>%
-  formatCurrency(2:5, "$") %>%
-  formatPercentage(6, digits = 2) %>%
-  formatCurrency(7, "$", digits = 2) %>%
-  formatPercentage(8, digits = 2)
-```
-
-<br>
-
-## Planning Region
-
-<br>
-
-```{r comparing change between scenarios pr}
-comp.total.rev.change.pr <- master.4pct %>%
-  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(district.join, by = c("District Name", "number", "type")) %>%
-  group_by(planning.region) %>%
-  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
-            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
-            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
-  ungroup() %>%
-  filter(total.rev.original > 0) %>%
-  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
-         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
-         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
-         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
-  filter(pct.diff.original.4pct.all > 0,
-         pct.diff.original.4pct.bsrev > 0) %>%
-  arrange(desc(pct.diff.original.4pct.all)) %>%
-  mutate(rank.diff.4pct.all = seq(n())) %>%
-  arrange(desc(pct.diff.original.4pct.bsrev)) %>%
-  mutate(rank.diff.4pct.bsrev = seq(n())) 
-
-datatable(comp.total.rev.change.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(2:5, "$") %>%
-  formatPercentage(6, digits = 2) %>%
-  formatCurrency(7, "$", digits = 2) %>%
-  formatPercentage(8, digits = 2)
-```
-
-<br>
-
-## EDR
-
-<br>
-
-```{r comparing change between scenarios edr}
-comp.total.rev.change.edr <- master.4pct %>%
-  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(district.join, by = c("District Name", "number", "type")) %>%
-  group_by(edr) %>%
-  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
-            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
-            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
-  ungroup() %>%
-  filter(total.rev.original > 0) %>%
-  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
-         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
-         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
-         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
-  filter(pct.diff.original.4pct.all > 0,
-         pct.diff.original.4pct.bsrev > 0) %>%
-  arrange(desc(pct.diff.original.4pct.all)) %>%
-  mutate(rank.diff.4pct.all = seq(n())) %>%
-  arrange(desc(pct.diff.original.4pct.bsrev)) %>%
-  mutate(rank.diff.4pct.bsrev = seq(n())) 
-
-datatable(comp.total.rev.change.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:9)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(2:5, "$") %>%
-  formatPercentage(6, digits = 2) %>%
-  formatCurrency(7, "$", digits = 2) %>%
-  formatPercentage(8, digits = 2)
-```
-
-<br>
-
-# {.unnumbered .unlisted .toc-ignore .tabset}
-
-Next, let's see what the percent change from original looks like at the county level.
-
-The maps below show that there are a few counties that end up changing. 
-
-<br>
-
-```{r comparing change between scenarios county}
-comp.total.rev.change.county <- master.4pct %>%
-  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
-  left_join(district.join, by = c("District Name", "number", "type")) %>%
-  group_by(`County Name`, countyfp) %>%
-  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
-            total.rev.4pct.all = sum(revenue.4pct, na.rm = TRUE),
-            total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
-  ungroup() %>%
-  filter(total.rev.original > 0) %>%
-  mutate(diff.4pct.all = total.rev.4pct.all - total.rev.original,
-         pct.diff.original.4pct.all = diff.4pct.all / total.rev.original,
-         diff.4pct.bsrev = total.rev.4pct.bsrev - total.rev.original,
-         pct.diff.original.4pct.bsrev = diff.4pct.bsrev / total.rev.original) %>%
-  filter(pct.diff.original.4pct.all > 0,
-         pct.diff.original.4pct.bsrev > 0) %>%
-  left_join(mn_counties[,c(4,7)], by = "countyfp")
-
-comp.total.rev.change.county.map.1 <- ggplot(comp.total.rev.change.county) +
-  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = pct.diff.original.4pct.all, data_id = countyfp, tooltip = paste(`County Name`, "\nOriginal total revenue: ", dollar(total.rev.original), "\nTotal revenue 4% increase entire formula: ", dollar(total.rev.4pct.all), "\nPercent difference from original: ", percent(pct.diff.original.4pct.all, accuracy = .1), sep = ""))) +
-  theme_sf+
-  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
-  labs(subtitle = "4% increase to entire formula") +
-  theme(legend.box.margin = margin(50, 0, 0, -100),
-        text = element_text(size = 18))
-
-comp.total.rev.change.county.map.2 <- ggplot(comp.total.rev.change.county) +
-  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = pct.diff.original.4pct.bsrev, data_id = countyfp, tooltip = paste(`County Name`, "\nOriginal total revenue: ", dollar(total.rev.original), "\nTotal revenue 4% increase bsrev only: ", dollar(total.rev.4pct.bsrev), "\nPercent difference from original: ", percent(pct.diff.original.4pct.bsrev, accuracy = .1), sep = ""))) +
-  theme_sf+
-  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
-  labs(subtitle = "4% increase to bsrev only") +
-  theme(legend.box.margin = margin(50, 0, 0, -100),
-        text = element_text(size = 18))
-
-plot.row.1 <- plot_grid(comp.total.rev.change.county.map.1, comp.total.rev.change.county.map.2) 
+  formatPercentage(3, digits = 2) %>%
+  formatPercentage(5, digits = 2) %>%
+  formatPercentage(6, digits = 2)
   
 
-title <- ggdraw() +
-  draw_label(
-    "Percent change from original revenue",
-    fontface = "bold",
-    x = 0,
-    hjust = 0,
-    size = 18
-  ) +
-  theme(
-    plot.margin = margin(0,0,0,0)
-  )
+prop.test(top.boost.group$n, top.boost.group$total.dataset.n)
 
+```
 
+<br>
 
-girafe(ggobj = plot_grid(title, plot.row.1,
-                         ncol = 1, rel_heights = c(.1, 1)), height_svg = 10, width_svg = 10) %>%
+### RUCA
+
+<br>
+
+```{r top boost ruca}
+
+top.boost.ruca <- top.boost.districts %>%
+  group_by(Dem_Desc) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  mutate(pct = n / sum(n)) %>%
+  left_join(prop.ruca, by = "Dem_Desc") %>%
+  mutate(n = ifelse(is.na(n), 0, n),
+         pct = ifelse(is.na(pct), 0, pct),
+         prop = n / total.dataset.n)
+
+datatable(top.boost.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatPercentage(3, digits = 2) %>%
+  formatPercentage(5, digits = 2) %>%
+  formatPercentage(6, digits = 2)
+  
+
+prop.test(top.boost.ruca$n, top.boost.ruca$total.dataset.n)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r top boost pr}
+
+top.boost.pr <- top.boost.districts %>%
+  group_by(planning.region) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  mutate(pct = n / sum(n)) %>%
+  right_join(prop.pr, by = "planning.region") %>%
+  mutate(n = ifelse(is.na(n), 0, n),
+         pct = ifelse(is.na(pct), 0, pct),
+         prop = n / total.dataset.n)
+
+datatable(top.boost.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatPercentage(3, digits = 2) %>%
+  formatPercentage(5, digits = 2) %>%
+  formatPercentage(6, digits = 2)
+  
+
+prop.test(top.boost.pr$n, top.boost.pr$total.dataset.n)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r top boost edr}
+
+top.boost.edr <- top.boost.districts %>%
+  group_by(edr) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  mutate(pct = n / sum(n)) %>%
+  right_join(prop.edr, by = "edr") %>%
+  mutate(n = ifelse(is.na(n), 0, n),
+         pct = ifelse(is.na(pct), 0, pct),
+         prop = n / total.dataset.n)
+
+datatable(top.boost.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)),
+                         scrollX = TRUE)) %>%
+  formatPercentage(3, digits = 2) %>%
+  formatPercentage(5, digits = 2) %>%
+  formatPercentage(6, digits = 2)
+  
+
+prop.test(top.boost.edr$n, top.boost.edr$total.dataset.n)
+
+```
+
+<br>
+
+### County map
+
+<br>
+
+```{r top boost county}
+
+top.boost.county <- top.boost.districts %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+  right_join(mn_counties[,c(3,4,7)]) %>%
+  mutate(n = ifelse(is.na(n), 0, n),
+         pct = n / sum(n),
+         `County Name` = COUNTY_NAM) 
+
+top.boost.county.map <- ggplot(top.boost.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = as.factor(n), data_id = countyfp, tooltip = paste(`County Name`, "\nNumber of schools in top 25: ", comma(n), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 3, "PuBu")) +
+  labs(title = "Schools in top 25 boost from scenarios") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = top.boost.county.map, height_svg = 10, width_svg = 10) %>%
   girafe_options(opts_sizing(rescale = FALSE))
 
+
 ```
 
+<br>
+
+
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
+
+The range from above shows that about half of the school districts receive between .5% and 1% more by increasing the entire formula by 4% compared to only increasing the basic education revenue component. What components are driving that difference?
 
 <br>
 
-# Comparing scenarios by APU{.tabset}
+### All districts
 
-Let's see what this looks like at an APU basis.
-
-Let's start by looking at school districts. When comparing the rankings, it doesn't seem like there's a ton of movement in terms of apu. 
-
-The tables below show that not a single ranking changes in terms of revenue per APU for each of the scenarios across RUCA categories and regions.
-
-<br>
-
-```{r APU join}
-awadm22.districts <- original %>%
-  select(`District Name`, number, type, awadm22)
-
-awadm22.group <- original %>%
-  group_by(group) %>%
-  summarize(awadm22 = sum(awadm22, na.rm = TRUE)) %>%
+```{r driver of difference between total revenues districts}
+driver.diff.total.rev.districts <- master.4pct %>%
+  filter(`District Name` != "Minnesota State Academies") %>%
+  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(master.original, by = c("District Name", "number", "type", "categories")) %>%
+  group_by(`District Name`, number, type) %>%
+  mutate(total.rev.4pct = sum(revenue.4pct),
+         total.rev.4pct.bsrev = sum(revenue.bsrevonly.4pct)) %>%
   ungroup() %>%
-  left_join(group.codes, by = c("group" = "Code")) %>%
-  select(Definition, awadm22)
-
-awadm22.ruca <- original %>%
-  group_by(Dem_Desc) %>%
-  summarize(awadm22 = sum(awadm22, na.rm = TRUE)) %>%
+  mutate(total.rev.diff = total.rev.4pct - total.rev.4pct.bsrev) %>%
+  mutate(category.diff = revenue.4pct - revenue.bsrevonly.4pct) %>%
+  mutate(pct.diff = category.diff / total.rev.diff) %>%
+  group_by(`District Name`, number, type) %>%
+  arrange(desc(pct.diff)) %>%
+  mutate(rank.pct.diff = seq(n())) %>%
   ungroup()
 
-awadm22.pr <- original %>%
-  group_by(planning.region) %>%
-  summarize(awadm22 = sum(awadm22, na.rm = TRUE)) %>%
+datatable(driver.diff.total.rev.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:12)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(5:11, "$", digits = 2) %>%
+  formatPercentage(12, digits = 2)
+  
+```
+
+<br>
+
+### Top 20 districts with largest pct difference
+
+<br>
+
+```{r table driver of difference between total revenues top 20 districts}
+driver.diff.total.rev.top.districts <- driver.diff.total.rev.districts %>%
+  left_join(comp.total.rev.change.districts[,c(1,2,3,10)], by = c("District Name", "number", "type")) %>%
+  filter(`Rank of pct gained between 2 scenarios` < 21) %>%
+  arrange(`Rank of pct gained between 2 scenarios`) %>%
+  filter(pct.diff > 0)
+  
+names(driver.diff.total.rev.top.districts)
+datatable(driver.diff.total.rev.top.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:12)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(5:11, "$", digits = 2) %>%
+  formatPercentage(12, digits = 2)
+  
+```
+
+<br>
+
+### Chart of drivers
+
+<br>
+
+```{r chart driver of difference top 20 districts}
+driver.diff.total.rev.top.districts.n <- driver.diff.total.rev.top.districts %>%
+  filter(rank.pct.diff < 4) %>%
+  group_by(categories, rank.pct.diff) %>%
+  summarize(n = n()) %>%
   ungroup()
 
-awadm22.edr <- original %>%
-  group_by(edr) %>%
-  summarize(awadm22 = sum(awadm22, na.rm = TRUE)) %>%
-  ungroup()
-```
+names(driver.diff.total.rev.top.districts.n)
 
-```{r scenario comparison by APU districts}
-comp.apu.districts <- comp.total.rev.change.districts %>%
-  left_join(awadm22.districts, by = c("District Name", "number", "type")) %>%
-  filter(awadm22 > 0) %>%
-  mutate(total.rev.original.apu = total.rev.original / awadm22,
-         total.rev.4pct.all.apu = total.rev.4pct.all / awadm22,
-         total.rev.4pct.bsrev.apu = total.rev.4pct.bsrev / awadm22) %>%
-  select(`District Name`, number, type, total.rev.original.apu, total.rev.4pct.all.apu, total.rev.4pct.bsrev.apu) %>%
-  arrange(desc(total.rev.original.apu)) %>%
-  mutate(rank.original = seq(n())) %>%
-  arrange(desc(total.rev.4pct.all.apu)) %>%
-  mutate(rank.4pct.all = seq(n())) %>%
-  arrange(desc(total.rev.4pct.bsrev.apu)) %>%
-  mutate(rank.4pct.bsrev = seq(n()))
+driver.diff.total.rev.top.districts.plot <- ggplot(filter(driver.diff.total.rev.top.districts, rank.pct.diff < 4), aes(categories, rank.pct.diff, )) +
+  geom_point_interactive(size = 5, aes(data_id = number, tooltip = paste(`District Name`, "\n", categories, "\nPercent this category is of difference between 2 scenarios: ", percent(pct.diff, accuracy = .1), sep = ""))) +
+  labs(x="", y = "", color="", title = "Rank of categories driving difference between scenarios") +
+  theme_line+
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
 
-datatable(comp.apu.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:8)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(4:6, "$") 
-```
+girafe(ggobj = driver.diff.total.rev.top.districts.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
 
-<br>
 
-Let's see what it looks like by public vs. charter schools. The table below shows no change in terms of funding per APU rank across all three scenarios. And, there is little difference between the 4% increase scenarios.
-
-<br>
-
-```{r scenario comparison by APU group}
-comp.apu.group <- comp.total.rev.change.group %>%
-  left_join(awadm22.group, by = c("Definition")) %>%
-  filter(awadm22 > 0) %>%
-  mutate(total.rev.original.apu = total.rev.original / awadm22,
-         total.rev.4pct.all.apu = total.rev.4pct.all / awadm22,
-         total.rev.4pct.bsrev.apu = total.rev.4pct.bsrev / awadm22) %>%
-  select(Definition, total.rev.original.apu, total.rev.4pct.all.apu, total.rev.4pct.bsrev.apu) %>%
-  arrange(desc(total.rev.original.apu)) %>%
-  mutate(rank.original = seq(n())) %>%
-  arrange(desc(total.rev.4pct.all.apu)) %>%
-  mutate(rank.4pct.all = seq(n())) %>%
-  arrange(desc(total.rev.4pct.bsrev.apu)) %>%
-  mutate(rank.4pct.bsrev = seq(n()))
-
-datatable(comp.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(2:4, "$") 
-```
-
-<br>
-
-Next, let's see if there are significant differences if grouped by RUCA categories and geographies.
-
-<br>
-
-## RUCA
-
-<br>
-
-```{r scenario comparison by APU ruca}
-comp.apu.ruca <- comp.total.rev.change.ruca %>%
-  left_join(awadm22.ruca, by = c("Dem_Desc")) %>%
-  filter(awadm22 > 0) %>%
-  mutate(total.rev.original.apu = total.rev.original / awadm22,
-         total.rev.4pct.all.apu = total.rev.4pct.all / awadm22,
-         total.rev.4pct.bsrev.apu = total.rev.4pct.bsrev / awadm22) %>%
-  select(Dem_Desc, total.rev.original.apu, total.rev.4pct.all.apu, total.rev.4pct.bsrev.apu) %>%
-  arrange(desc(total.rev.original.apu)) %>%
-  mutate(rank.original = seq(n())) %>%
-  arrange(desc(total.rev.4pct.all.apu)) %>%
-  mutate(rank.4pct.all = seq(n())) %>%
-  arrange(desc(total.rev.4pct.bsrev.apu)) %>%
-  mutate(rank.4pct.bsrev = seq(n()))
-
-datatable(comp.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(2:4, "$") 
-```
-
-<br>
-
-## Planning Region
-
-<br>
-
-```{r scenario comparison by APU pr}
-comp.apu.pr <- comp.total.rev.change.pr %>%
-  left_join(awadm22.pr, by = c("planning.region")) %>%
-  filter(awadm22 > 0) %>%
-  mutate(total.rev.original.apu = total.rev.original / awadm22,
-         total.rev.4pct.all.apu = total.rev.4pct.all / awadm22,
-         total.rev.4pct.bsrev.apu = total.rev.4pct.bsrev / awadm22) %>%
-  select(planning.region, total.rev.original.apu, total.rev.4pct.all.apu, total.rev.4pct.bsrev.apu) %>%
-  arrange(desc(total.rev.original.apu)) %>%
-  mutate(rank.original = seq(n())) %>%
-  arrange(desc(total.rev.4pct.all.apu)) %>%
-  mutate(rank.4pct.all = seq(n())) %>%
-  arrange(desc(total.rev.4pct.bsrev.apu)) %>%
-  mutate(rank.4pct.bsrev = seq(n()))
-
-datatable(comp.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(2:4, "$") 
-```
-
-<br>
-
-## EDR
-
-<br>
-
-```{r scenario comparison by APU edr}
-comp.apu.edr <- comp.total.rev.change.edr %>%
-  left_join(awadm22.edr, by = c("edr")) %>%
-  filter(awadm22 > 0) %>%
-  mutate(total.rev.original.apu = total.rev.original / awadm22,
-         total.rev.4pct.all.apu = total.rev.4pct.all / awadm22,
-         total.rev.4pct.bsrev.apu = total.rev.4pct.bsrev / awadm22) %>%
-  select(edr, total.rev.original.apu, total.rev.4pct.all.apu, total.rev.4pct.bsrev.apu) %>%
-  arrange(desc(total.rev.original.apu)) %>%
-  mutate(rank.original = seq(n())) %>%
-  arrange(desc(total.rev.4pct.all.apu)) %>%
-  mutate(rank.4pct.all = seq(n())) %>%
-  arrange(desc(total.rev.4pct.bsrev.apu)) %>%
-  mutate(rank.4pct.bsrev = seq(n()))
-
-datatable(comp.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
-                         scrollX = TRUE)) %>%
-  formatCurrency(2:4, "$") 
 ```
 
 <br>

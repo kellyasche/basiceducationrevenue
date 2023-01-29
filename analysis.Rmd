@@ -1376,7 +1376,7 @@ girafe(ggobj = top.boost.county.map, height_svg = 10, width_svg = 10) %>%
 
 ## {.unnumbered .unlisted .toc-ignore .tabset}
 
-The range from above shows that about half of the school districts receive between .5% and 1% more by increasing the entire formula by 4% compared to only increasing the basic education revenue component. What components are driving that difference?
+The range from above shows that about half of the school districts receive between .5% and 1% more by increasing the entire formula by 4% compared to only increasing the basic education revenue component. In addition, there does seem to be a relatioship between districts that receive the highest boost going from a 4% to basic education only vs.a 4% increase to the entire formula. So, what components are driving that difference?
 
 <br>
 
@@ -1409,18 +1409,17 @@ datatable(driver.diff.total.rev.districts, class = "cell-border stripe", filter 
 
 <br>
 
-### Top 20 districts with largest pct difference
+### Top 25 districts with largest pct difference
 
 <br>
 
 ```{r table driver of difference between total revenues top 20 districts}
 driver.diff.total.rev.top.districts <- driver.diff.total.rev.districts %>%
   left_join(comp.total.rev.change.districts[,c(1,2,3,10)], by = c("District Name", "number", "type")) %>%
-  filter(`Rank of pct gained between 2 scenarios` < 21) %>%
+  filter(`Rank of pct gained between 2 scenarios` < 26) %>%
   arrange(`Rank of pct gained between 2 scenarios`) %>%
   filter(pct.diff > 0)
   
-names(driver.diff.total.rev.top.districts)
 datatable(driver.diff.total.rev.top.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
           options = list(columnDefs = list(list(className = "dt-center", targets = 1:12)),
                          scrollX = TRUE)) %>%
@@ -1431,7 +1430,7 @@ datatable(driver.diff.total.rev.top.districts, class = "cell-border stripe", fil
 
 <br>
 
-### Chart of drivers
+### Chart - categories by rank 
 
 <br>
 
@@ -1440,13 +1439,20 @@ driver.diff.total.rev.top.districts.n <- driver.diff.total.rev.top.districts %>%
   filter(rank.pct.diff < 4) %>%
   group_by(categories, rank.pct.diff) %>%
   summarize(n = n()) %>%
+  ungroup() %>%
+  group_by(rank.pct.diff) %>%
+  mutate(pct.rank = n / sum(n)) %>%
+  ungroup() %>%
+  group_by(rank.pct.diff) %>%
+  arrange(desc(n)) %>%
   ungroup()
 
-names(driver.diff.total.rev.top.districts.n)
-
-driver.diff.total.rev.top.districts.plot <- ggplot(filter(driver.diff.total.rev.top.districts, rank.pct.diff < 4), aes(categories, rank.pct.diff, )) +
-  geom_point_interactive(size = 5, aes(data_id = number, tooltip = paste(`District Name`, "\n", categories, "\nPercent this category is of difference between 2 scenarios: ", percent(pct.diff, accuracy = .1), sep = ""))) +
-  labs(x="", y = "", color="", title = "Rank of categories driving difference between scenarios") +
+driver.diff.total.rev.top.districts.plot <- ggplot(driver.diff.total.rev.top.districts.n, aes(rank.pct.diff, pct.rank, group = categories, fill = categories)) +
+  geom_col_interactive(position = "dodge", aes(data_id = categories, tooltip = paste("Rank: ", rank.pct.diff, "\nNumber of times at this rank: ", n, "\nPercent of rank: ", percent(pct.rank, accuracy = .1), sep = ""))) +
+  geom_label_interactive(aes(label = categories), show.legend = FALSE, position = position_dodge(width = .9)) +
+  scale_fill_manual(values = brewer.pal(n = 11, "RdYlBu")) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x="", y = "", color="", title = "Categories driving the difference between scenarios") +
   theme_line+
   theme(legend.position = "bottom",
         text = element_text(size = 18))
@@ -1457,6 +1463,26 @@ girafe(ggobj = driver.diff.total.rev.top.districts.plot, width_svg = 10, height_
                  opts_sizing(rescale = FALSE))
 
 
+```
+
+<br>
+
+### Chart - categories strength of drive
+
+<br>
+
+```{r categories strength of drive}
+cat.strength.top.25 <- driver.diff.total.rev.top.districts.n %>%
+  mutate(strength.rank = ifelse(rank.pct.diff == 1, 3,
+                           ifelse(rank.pct.diff == 2, 2, 1)),
+         strength.multiplied.n = strength.rank * n) %>%
+  group_by(categories) %>%
+  summarize(total.n = sum(n),
+            strength.multiplied.n = sum(strength.multiplied.n)) %>%
+  ungroup() %>%
+  mutate(strength = strength.multiplied.n / total.n)
+  
+names(cat.strength.top.25)
 ```
 
 <br>

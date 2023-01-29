@@ -128,6 +128,13 @@ mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp",
 
 ```
 
+```{r shapefiles}
+school_districts <- read_sf("Data/Shapefiles/School Shapefiles/School_district_boundaries.shp", quiet = TRUE) %>%
+  rename(type = UNI_TYP,
+         number = UNI_MAJ)
+
+```
+
 
 ```{r master basic revenue}
 original <- read_csv("Data/Formula/Master.csv") %>%
@@ -1091,6 +1098,253 @@ A 4% increase goes from $6728 to `r dollar((6728*.04)+6728)`.
 
 In this analysis, we are going to measure the "boost" received by each scenario from their original total revenue from the general education revenue formula, and which component of the formula drives the difference between the two scenarios. We will start with school districts, then look at public vs. charter schools, then RUCA categories, planning regions, and economic development regions.
 
+## Summary statistics of two scenarios{.tabset}
+
+Let's first take a look at the total dollar amounts for each scenario. The table below is the total revenue provided by the general education revenue under these three scenarios;
+
+1. the original amount provided in FY22
+2. a 4% increase to all components of the formula
+3. a 4% increase to only the basic education revenue component.
+
+A 4% increase to only the basic education revenue component would be $276,288,982, or 3.75% increase from the original amount. A 4% increase to the entire general education formula (all components) would be an increase of 
+$307,276,630 or 4.17%. This is a difference of nearly $31 million between the two scenarios which is .42% of the original revenue provided. 
+<br>
+
+```{r total revenue summary}
+summary.total.rev <- master.original %>%
+  left_join(master.4pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(master.bsrevonly.4pct, by = c("District Name", "number", "type", "categories")) %>%
+  left_join(district.join, by = c("District Name", "number", "type"))
+
+summary.total.rev.all <- summary.total.rev %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.4pct = sum(revenue.4pct, na.rm = TRUE),
+            revenue.4pct.pct.change = (revenue.4pct - revenue.original) / revenue.original,
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct, na.rm = TRUE),
+            revenue.bsrevonly.4pct.pct.change = (revenue.bsrevonly.4pct - revenue.original) / revenue.original) %>%
+  mutate(`Diff between scenarios` = revenue.4pct - revenue.bsrevonly.4pct,
+         `Diff between scenarios - pct of original` = `Diff between scenarios` / revenue.original)
+
+
+datatable(summary.total.rev.all, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 0:6)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(1:2, "$", digits = 0) %>%
+  formatPercentage(3, digits = 2) %>%
+  formatCurrency(4, "$") %>%
+  formatPercentage(5, digits = 2) %>%
+  formatCurrency(6, "$") %>%
+  formatPercentage(7, digits = 2)
+
+```
+
+<br>
+
+Let's take a look and see if what the changes are based on public vs charter schools, RUCA categories and geography.
+
+The public vs charter school table shows that public schools see the largest boost from the two scenarios. Public schools experience a .43% boost by increasing the entire formula vs. only the basic education revenue component by 4% compared to .28% for charter schools.
+
+The RUCA table shows that our most rural districts receive the largest boost by going from increasing only basic education revenue component to increasing the entire formula with a .54% increase. Entirely urban receives a .36% increase. In addition, the entirely rural school districts experience the lowest boost if only the basic education revenue component is increased by 4%. 
+The planning region table shows that Southwest, Central, Southeast, and Northwest receive rather large boosts going from increasing only the bsic education revenue component by 4% compared to increasing the entire formula by 4%. In fact, Southwest goes from receiving the lowest boost if only the basic education revenue component is increased by 4%. But, if the entire formula is increased by 4%, it receives the 2nd largest boost.
+
+The EDRs shows a similar trend. EDR 8, 6W, 6E and 1 all receive rather large boosts from going from one scenario to the other (over .5%). That boost helps them jump up the rankings. For example, EDR 8 receives the 11th lowest boost if basic education revenue component is incresaed by 4%. However, if the entire framework is increased by 4%, it jumps up to having the highest boost. 
+
+<br>
+
+### Public vs. charter
+
+<br>
+
+```{r total revenue summary group}
+summary.total.rev.group <- summary.total.rev %>%
+  group_by(group) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.4pct = sum(revenue.4pct, na.rm = TRUE),
+            revenue.4pct.pct.change = (revenue.4pct - revenue.original) / revenue.original,
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct, na.rm = TRUE),
+            revenue.bsrevonly.4pct.pct.change = (revenue.bsrevonly.4pct - revenue.original) / revenue.original) %>%
+  ungroup() %>%
+  mutate(`Diff between scenarios` = revenue.4pct - revenue.bsrevonly.4pct,
+         `Diff between scenarios - pct of original` = `Diff between scenarios` / revenue.original) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  arrange(desc(revenue.4pct.pct.change)) %>%
+  mutate(rank.4pct.pct.change = seq(n())) %>%
+  arrange(desc(revenue.bsrevonly.4pct.pct.change)) %>%
+  mutate(rank.4pct.bsrevonly.pct.change = seq(n())) %>%
+  arrange(desc(`Diff between scenarios - pct of original`)) %>%
+  mutate(rank.diff.between.scenarios = seq(n())) %>%
+  select(Definition, 2:8, 10:12)
+
+datatable(summary.total.rev.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:10)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 0) %>%
+  formatPercentage(4, digits = 2) %>%
+  formatCurrency(5, "$") %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7, "$") %>%
+  formatPercentage(8, digits = 2)
+```
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r total revenue summary ruca}
+summary.total.rev.ruca <- summary.total.rev %>%
+  drop_na(Dem_Desc) %>%
+  group_by(Dem_Desc) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.4pct = sum(revenue.4pct, na.rm = TRUE),
+            revenue.4pct.pct.change = (revenue.4pct - revenue.original) / revenue.original,
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct, na.rm = TRUE),
+            revenue.bsrevonly.4pct.pct.change = (revenue.bsrevonly.4pct - revenue.original) / revenue.original) %>%
+  ungroup() %>%
+  mutate(`Diff between scenarios` = revenue.4pct - revenue.bsrevonly.4pct,
+         `Diff between scenarios - pct of original` = `Diff between scenarios` / revenue.original) %>%
+  arrange(desc(revenue.4pct.pct.change)) %>%
+  mutate(rank.4pct.pct.change = seq(n())) %>%
+  arrange(desc(revenue.bsrevonly.4pct.pct.change)) %>%
+  mutate(rank.4pct.bsrevonly.pct.change = seq(n())) %>%
+  arrange(desc(`Diff between scenarios - pct of original`)) %>%
+  mutate(rank.diff.between.scenarios = seq(n())) 
+
+datatable(summary.total.rev.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:10)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 0) %>%
+  formatPercentage(4, digits = 2) %>%
+  formatCurrency(5, "$") %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7, "$") %>%
+  formatPercentage(8, digits = 2)
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r total revenue summary pr}
+summary.total.rev.pr <- summary.total.rev %>%
+  drop_na(planning.region) %>%
+  group_by(planning.region) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.4pct = sum(revenue.4pct, na.rm = TRUE),
+            revenue.4pct.pct.change = (revenue.4pct - revenue.original) / revenue.original,
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct, na.rm = TRUE),
+            revenue.bsrevonly.4pct.pct.change = (revenue.bsrevonly.4pct - revenue.original) / revenue.original) %>%
+  ungroup() %>%
+  mutate(`Diff between scenarios` = revenue.4pct - revenue.bsrevonly.4pct,
+         `Diff between scenarios - pct of original` = `Diff between scenarios` / revenue.original) %>%
+  arrange(desc(revenue.4pct.pct.change)) %>%
+  mutate(rank.4pct.pct.change = seq(n())) %>%
+  arrange(desc(revenue.bsrevonly.4pct.pct.change)) %>%
+  mutate(rank.4pct.bsrevonly.pct.change = seq(n())) %>%
+  arrange(desc(`Diff between scenarios - pct of original`)) %>%
+  mutate(rank.diff.between.scenarios = seq(n())) 
+
+datatable(summary.total.rev.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:10)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 0) %>%
+  formatPercentage(4, digits = 2) %>%
+  formatCurrency(5, "$") %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7, "$") %>%
+  formatPercentage(8, digits = 2)
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r total revenue summary edr}
+summary.total.rev.edr <- summary.total.rev %>%
+  drop_na(edr) %>%
+  group_by(edr) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.4pct = sum(revenue.4pct, na.rm = TRUE),
+            revenue.4pct.pct.change = (revenue.4pct - revenue.original) / revenue.original,
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct, na.rm = TRUE),
+            revenue.bsrevonly.4pct.pct.change = (revenue.bsrevonly.4pct - revenue.original) / revenue.original) %>%
+  ungroup() %>%
+  mutate(`Diff between scenarios` = revenue.4pct - revenue.bsrevonly.4pct,
+         `Diff between scenarios - pct of original` = `Diff between scenarios` / revenue.original) %>%
+  arrange(desc(revenue.4pct.pct.change)) %>%
+  mutate(rank.4pct.pct.change = seq(n())) %>%
+  arrange(desc(revenue.bsrevonly.4pct.pct.change)) %>%
+  mutate(rank.4pct.bsrevonly.pct.change = seq(n())) %>%
+  arrange(desc(`Diff between scenarios - pct of original`)) %>%
+  mutate(rank.diff.between.scenarios = seq(n())) 
+
+datatable(summary.total.rev.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:10)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$", digits = 0) %>%
+  formatPercentage(4, digits = 2) %>%
+  formatCurrency(5, "$") %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7, "$") %>%
+  formatPercentage(8, digits = 2)
+
+```
+
+<br>
+
+Finally, let's look at this at the county level. We are going to look at the boost school districts within each county receive if the entire general education revenue framework is increased by 4% vs. only increasing the basic education revenue component.
+
+The map below pretty clearly shows that school districts located in southwest Minnesota receive the highest boost if the entire general education revenue framework is increased vs only the basic education component.
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore}
+
+```{r total revenue summary county}
+summary.total.rev.county <- summary.total.rev %>%
+  drop_na(`County Name`) %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.4pct = sum(revenue.4pct, na.rm = TRUE),
+            revenue.4pct.pct.change = (revenue.4pct - revenue.original) / revenue.original,
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct, na.rm = TRUE),
+            revenue.bsrevonly.4pct.pct.change = (revenue.bsrevonly.4pct - revenue.original) / revenue.original) %>%
+  ungroup() %>%
+  mutate(`Diff between scenarios` = revenue.4pct - revenue.bsrevonly.4pct,
+         `Diff between scenarios - pct of original` = `Diff between scenarios` / revenue.original) %>%
+  arrange(desc(revenue.4pct.pct.change)) %>%
+  mutate(rank.4pct.pct.change = seq(n())) %>%
+  arrange(desc(revenue.bsrevonly.4pct.pct.change)) %>%
+  mutate(rank.4pct.bsrevonly.pct.change = seq(n())) %>%
+  arrange(desc(`Diff between scenarios - pct of original`)) %>%
+  mutate(rank.diff.between.scenarios = seq(n())) %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp")
+
+summary.total.rev.county.map <- ggplot(summary.total.rev.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = `Diff between scenarios - pct of original`, data_id = countyfp, tooltip = paste(`County Name`, "\nOriginal total revenue: ", dollar(revenue.original), "\nRevenue if only basic education component is increased 4%: ", dollar(revenue.bsrevonly.4pct), "\nRevenue if entire general education framework is increased 4%: ", dollar(revenue.4pct), "\nPercent difference between two scenarios: ", percent(`Diff between scenarios - pct of original`, accuracy = .2), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
+  labs(title = "Percent difference etween two scenarios") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = summary.total.rev.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+
+<br>
+
+
+
 ## School districts{.tabset}
 
 First, we will examine how schools districts are impacted by the increase from each scenario as a percentage of their original total funding from the general education formula in FY22.
@@ -1194,35 +1448,32 @@ datatable(comp.total.rev.change.range.districts.table, class = "cell-border stri
 
 ## {.unnumbered .unlisted .toc-ignore .tabset}
 
-Let's take a look to see if those schools that experience the largest "boost" from a 4% increase to basic education revenue component only to a 4% increase across the entire formula are related to whether it's a charter vs. public school, it's RUCA category, and it geographic location. We will use the top 25 school districts with the largest difference between the two scenarios.
+Let's take a look to see if those schools that experience the largest "boost" from a 4% increase to basic education revenue component only to a 4% increase across the entire formula are related to whether it's a charter vs. public school, it's RUCA category, and it geographic location. We will use the top 75% with the highest gains in percent of original revenue terms between the two scenarios. The quantiles for that data are;
 
-The public vs. charter school table shows that there were no charter schools in the top 25. Obviously, this means that there is a statistically significant difference since charter schools make up 36% of the entire dataset. All 25 schoool districts with the largest difference between the two scenarios are public schools.
+`r quantile(comp.total.rev.change.districts$'Percent of original gained between scenarios')`.
 
-The RUCA categories also indicate a statistically significant difference between being in the top 25 and it's proportion of the total dataset. The biggest difference is the number of schools located in a town/rural mix county that are in the top 25 -  n = 13, pct = 52% compared to being only 25% of the entire dataset. The other major difference is how few school districts located in entirely urban counties are in the top 25 compared to it's proportion of the dataset - 8% vs 41% of the dataset.
+The public vs. charter school table shows that there was only 1 charter school in the quartile. Obviously, this means that there is a statistically significant difference since charter schools make up 36% of the entire dataset. There were 126 school districts with the largest difference between the two scenarios are public schools.
 
-The planning regions indicate that Northwest, Southwest, and Southeast make up a significantly larger proportion of the top 25 compared to it's population; 36% vs. 19%, 24% vs. 15%, and 28% vs. 11%, respectively. The other regions have significantly lower proportions of the top 25.
+The RUCA categories also indicate a statistically significant difference between being in the top quartile and it's proportion of the total dataset. The biggest difference is the number of schools located in a urban/town/rural mix county that are in the top quartile -  n = 53, pct = 42% compared to being only 27% of the entire dataset. Enrirely rural and town/rural mix school districts also had a higher percentage of schools in the top quartile compared to their proportion of the total dataset. The other major difference is how few school districts located in entirely urban counties are in the top quartiler compared to it's proportion of the dataset - 10% vs 41% of the dataset.
 
-In addition, the EDR's show that the following regions have higher than expected proportions in the top 25;
+The planning regions indicate that Central, Southwest and Southeast make up a significantly larger proportion of the top quartile compared to it's population; 18% vs. 13%,  29% vs. 15%, and 20% vs. 11%, respectively. The other regions have either similar (Northwest) or significantly lower proportions of the top quartile (Seven County metro).
 
-* EDR 10 - Southeast: 28% vs. 11%
-* EDR 4 - West Central: 16% vs. 6%
-* EDR 5 - North Central: 16% vs. 5%
-* EDR 8 - Southwest: 12% vs. 6%
-* EDR 9 - South Central: 12% vs. 7%
+In addition, the EDR's show that, in particular, EDRs in Southern MN have a higher proportion of school districts in the top quartile compared to other regions. EDR 8, 9, and 10 all have significantly higher percentages - 15% vs. 6%, 11% vs. 7%, and 21% vs. 11%, respectively.
 
-The EDR's that had significantly lower than expected proportions in the top 25 were;
-
-* EDR 11 - 7-county metro: 4% vs. 35%
-
-Lastly, the county map shows that the location of schools that are in the top 25 are scattered throughout Greater Minnesota. 
+Lastly, the county map shows that the location of schools that are in the top quartiler are concentrated in the southern part of the state.
 
 <br>
+
+```{r calculate top 75%}
+top.75pct <- quantile(comp.total.rev.change.districts$`Percent of original gained between scenarios`, .75) %>%
+  unname()
+```
 
 ### Public vs. Charter
 
 ```{r top boost group}
 top.boost.districts <- comp.total.rev.change.districts %>%
-  filter(`Rank of pct gained between 2 scenarios` < 26) %>%
+  filter(`Percent of original gained between scenarios` >= top.75pct) %>%
   left_join(district.join, by = c("District Name", "number", "type")) %>%
   left_join(group.codes, by = c("group" = "Code")) %>%
   filter(group %in% c(1,4)) 
@@ -1359,7 +1610,7 @@ top.boost.county <- top.boost.districts %>%
 top.boost.county.map <- ggplot(top.boost.county) +
   geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = as.factor(n), data_id = countyfp, tooltip = paste(`County Name`, "\nNumber of schools in top 25: ", comma(n), sep = ""))) +
   theme_sf+
-  scale_fill_manual(values = brewer.pal(n = 3, "PuBu")) +
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu")) +
   labs(title = "Schools in top 25 boost from scenarios") +
   theme(legend.box.margin = margin(50, 0, 0, -100),
         text = element_text(size = 18))
@@ -1376,7 +1627,11 @@ girafe(ggobj = top.boost.county.map, height_svg = 10, width_svg = 10) %>%
 
 ## {.unnumbered .unlisted .toc-ignore .tabset}
 
-The range from above shows that about half of the school districts receive between .5% and 1% more by increasing the entire formula by 4% compared to only increasing the basic education revenue component. In addition, there does seem to be a relatioship between districts that receive the highest boost going from a 4% to basic education only vs.a 4% increase to the entire formula. So, what components are driving that difference?
+The range from above shows that about half of the school districts receive between .5% and 1% more by increasing the entire formula by 4% compared to only increasing the basic education revenue component. In addition, there does seem to be a relationship between districts that receive the highest boost going from a 4% to basic education only vs.a 4% increase to the entire formula and it's RUCA region, and geography. So, what components are driving that difference?
+
+When looking at the categories that drive the gains from the 4% increase to basic education revenue vs. a 4% increase to the entire formula, local optional aid is the number one driver for 95.3% of the top quartile. Total sparsity is next with 5 districts having that as the top driver. The next biggest driver is operating capital aid with 61% of the second largest driver in the difference between the two scenarios. Small schools revenue and equity aid also end up being rather significant drivers in the difference for the top quartile.
+
+The map is interesting. Obviously, local optional aid is the primary driver in the difference between the two scenarios for most of the districts in the top quartile. In northern Minnesota and in Southwest Minnesota, total sparsity and small schools revenue becomes a bigger deal. Operating capital aid, however, is also significant across nearly all districts. Equity aid also starts to pop up across many districts as the third highest category driving change between the two scenarios.
 
 <br>
 
@@ -1409,17 +1664,17 @@ datatable(driver.diff.total.rev.districts, class = "cell-border stripe", filter 
 
 <br>
 
-### Top 25 districts with largest pct difference
+### Top quartile districts with largest pct difference
 
 <br>
 
-```{r table driver of difference between total revenues top 20 districts}
+```{r table driver of difference between total revenues top quartile districts}
 driver.diff.total.rev.top.districts <- driver.diff.total.rev.districts %>%
-  left_join(comp.total.rev.change.districts[,c(1,2,3,10)], by = c("District Name", "number", "type")) %>%
-  filter(`Rank of pct gained between 2 scenarios` < 26) %>%
-  arrange(`Rank of pct gained between 2 scenarios`) %>%
+  left_join(comp.total.rev.change.districts[,c(1,2,3,9)], by = c("District Name", "number", "type")) %>%
+  filter(`Percent of original gained between scenarios` >= top.75pct) %>%
+  arrange(desc(`Percent of original gained between scenarios`)) %>%
   filter(pct.diff > 0)
-  
+
 datatable(driver.diff.total.rev.top.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
           options = list(columnDefs = list(list(className = "dt-center", targets = 1:12)),
                          scrollX = TRUE)) %>%
@@ -1434,7 +1689,7 @@ datatable(driver.diff.total.rev.top.districts, class = "cell-border stripe", fil
 
 <br>
 
-```{r chart driver of difference top 20 districts}
+```{r chart driver of difference top quartile districts}
 driver.diff.total.rev.top.districts.n <- driver.diff.total.rev.top.districts %>%
   filter(rank.pct.diff < 4) %>%
   group_by(categories, rank.pct.diff) %>%
@@ -1465,24 +1720,34 @@ girafe(ggobj = driver.diff.total.rev.top.districts.plot, width_svg = 10, height_
 
 ```
 
-<br>
-
-### Chart - categories strength of drive
 
 <br>
 
-```{r categories strength of drive}
-cat.strength.top.25 <- driver.diff.total.rev.top.districts.n %>%
-  mutate(strength.rank = ifelse(rank.pct.diff == 1, 3,
-                           ifelse(rank.pct.diff == 2, 2, 1)),
-         strength.multiplied.n = strength.rank * n) %>%
-  group_by(categories) %>%
-  summarize(total.n = sum(n),
-            strength.multiplied.n = sum(strength.multiplied.n)) %>%
-  ungroup() %>%
-  mutate(strength = strength.multiplied.n / total.n)
+
+### County map
+
+<br>
+
+```{r chart driver of difference top quartile districts map}
+driver.diff.total.rev.top.districts.county <- driver.diff.total.rev.top.districts %>%
+  filter(rank.pct.diff < 4) %>%
+  left_join(school_districts[,c(1,2,7)], by = c("number", "type"))
   
-names(cat.strength.top.25)
+driver.diff.total.rev.top.districts.county.map <- ggplot(driver.diff.total.rev.top.districts.county) +
+  facet_wrap(~rank.pct.diff, ncol = 2) +
+  geom_sf(data = mn_counties, color = "grey85", aes(geometry = geometry), fill = "transparent") +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = categories, data_id = pct.diff, tooltip = paste(`District Name`, "\nCategory: ", categories, "\nRank of category: ", rank.pct.diff, "\nPercent of differene between scanerios this category comprises: ", percent(pct.diff, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 11, "RdYlBu"))+
+  labs(title = "Top 3 categories driving difference between two scenarios") +
+  theme(legend.box.margin = margin(200, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = driver.diff.total.rev.top.districts.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
 ```
 
+
 <br>
+

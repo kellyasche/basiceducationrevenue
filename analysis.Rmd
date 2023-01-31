@@ -1,5 +1,5 @@
 ---
-title: "A better analysis"
+title: "Analysis"
 output:
   html_document:
     toc: true
@@ -1297,13 +1297,13 @@ datatable(summary.total.rev.edr, class = "cell-border stripe", filter = "top", r
 
 ```
 
+
+
 <br>
 
 Finally, let's look at this at the county level. We are going to look at the boost school districts within each county receive if the entire general education revenue framework is increased by 4% vs. only increasing the basic education revenue component.
 
 The map below pretty clearly shows that school districts located in southwest Minnesota receive the highest boost if the entire general education revenue framework is increased vs only the basic education component.
-
-<br>
 
 ## {.unnumbered .unlisted .toc-ignore}
 
@@ -1750,4 +1750,225 @@ girafe(ggobj = driver.diff.total.rev.top.districts.county.map, height_svg = 10, 
 
 
 <br>
+
+# Analysis of largest boost: revenue per APU
+
+Let's do the same thing we did above, but instead of looking at scenarios in terms of how much it boosts revenue, let's look at it as revenue per APU.
+
+<br>
+
+## Summary statistics of two scenarios{.tabset}
+
+We will begin by summarizing total original revenue as well as the two scenarios per APU. The table below provides the total original revenue per APU, the 4% increase to the basic education component only per APU, and the 4% increase to the entire general education formula per APU, as well as the differences between these scenarios. 
+
+A 4% increase to only the basic education component equals a 3.75% increase to revenue per APU - from $7,843.19 per APU to $8,137.10. A 4% increase to the entire general education formula equals a 4.17% increase in total revenue per APU - from $7,843.19 per APU to $8,170.06 per APU. Essentially increasing the entire general education formula by 4% increases the total revenue per APU by nearly $33 compared to only increasing the basic education revenue component only.
+
+
+
+<br>
+
+```{r summary total rev per apu all}
+summary.total.rev.apu <- summary.total.rev %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.4pct = sum(revenue.4pct, na.rm = TRUE),
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct, na.rm = TRUE)) %>%
+  ungroup()
+
+summary.total.rev.apu.all <- summary.total.rev.apu %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  summarize(revenue.original = sum(revenue.original),
+            revenue.4pct = sum(revenue.4pct),
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct),
+            awadm22 = sum(awadm22)) %>%
+  mutate(revenue.original.apu = revenue.original / awadm22,
+         revenue.4pct.apu = revenue.4pct / awadm22,
+         revenue.bsrevonly.4pct.apu = revenue.bsrevonly.4pct / awadm22,
+         pct.change.bsrev.apu = (revenue.bsrevonly.4pct.apu - revenue.original.apu) / revenue.original.apu,
+         pct.change.4pct.apu = (revenue.4pct.apu - revenue.original.apu) / revenue.original.apu) %>%
+  select(awadm22, revenue.original.apu, revenue.bsrevonly.4pct.apu, pct.change.bsrev.apu, revenue.4pct.apu, pct.change.4pct.apu) %>%
+  mutate(diff.between.scenarios.apu = revenue.4pct.apu - revenue.bsrevonly.4pct.apu,
+         pct.diff.between.scenarios = diff.between.scenarios.apu / revenue.original.apu)
+
+datatable(summary.total.rev.apu.all, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 0:7)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(2:3, "$") %>%
+  formatPercentage(4, digits = 2) %>%
+  formatCurrency(5, "$") %>%
+  formatPercentage(6, digits = 2) %>%
+  formatCurrency(7, "$") %>%
+  formatPercentage(8, digits = 2)
+
+
+```
+
+<br>
+
+Next, let's take a look at the differences by charter vs. public, RUCA category, and regions.
+
+The charter vs. public table shows that, surprisingly, charter schools receive significantly more revenue per APU than public schools. In the original FY22 revenue, charter schools receive nearly a $1,000 more per APU than public schools - $8,726.00 vs. $7,768.23 per APU. An increase of 4% to the basic education component only provides a larger boost to public schools than charter - 3.76% vs. 3.66%. A 4% increase to the entire formula also provides a larger boost to public than charter - 4.19% vs. 3.94%.
+
+The RUCA table shows that entirely rural school districts receive the largest revenue per APU in the FY22 revenue formula - $8,902.93 vs. $7,752.59 per APU for entirely urban counties. That's SIGNIFICANTLY larger. If only the basic education revenue component is increased by 4%, entirely urban schools receive the largest bump with 3.77% increase. It gets progressively less as a school district is more rural - 3.64% for entirely rural districts. However, a 4% increase to the entire general education formula means that entirely urban districts get the lowest bump - 4.13%. Then, entirely rural districts get a 4.19% bump, 4.23% for town/rural districts, and a 4.25% bump for urban/town/rural districts.
+
+The planning region table shows that total revenue per APU is significantly closer to each other due to there being a mixture of rural and urban school districts within each planning region. In the original FY22 revenue, Northwest receives the highest with $8,121.39 per APU followed closely by Northeast. The lowest is actually Central with $7,643.96 per APU. The seven county metro receives the largest bump with a 4% increase to only the basic education component with a 3.77% increase. The lowest is Southwest with a 3.69%. By increasing the entire general education formula, Central and Southwest would receive a 4.27% increase followed closely by Southeast and Northwest. The Seven County metro would receive the lowest with a 4.11% increase.
+
+The EDR table shows that EDR 1 and 2 receive the highest revenue per APU with between $8,500 and $9,000 per APU. This is followed closely by other rural EDRs such as 6W, 8, and 3. The lowest are EDRs located in Central MN - ER 9, 7E and 7W. With a 4% increase to only the basic education component, EDR 11 receives the highest bump with EDR 4 and EDRs in Central Minnesota following closely behind. The lowest bump is EDR 1, 6W, and 8. The EDRs with the highest bumps from a 4% increase to the entire general education formula would be EDR 6E, 8, 7E and 7W. 
+
+<br>
+
+### Public vs. Charter
+
+<br>
+
+```{r summary total rev per apu group}
+
+summary.total.rev.apu.group <- summary.total.rev.apu %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  group_by(group) %>%
+  summarize(revenue.original = sum(revenue.original),
+            revenue.4pct = sum(revenue.4pct),
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct),
+            awadm22 = sum(awadm22)) %>%
+  mutate(revenue.original.apu = revenue.original / awadm22,
+         revenue.4pct.apu = revenue.4pct / awadm22,
+         revenue.bsrevonly.4pct.apu = revenue.bsrevonly.4pct / awadm22,
+         pct.change.bsrev.apu = (revenue.bsrevonly.4pct.apu - revenue.original.apu) / revenue.original.apu,
+         pct.change.4pct.apu = (revenue.4pct.apu - revenue.original.apu) / revenue.original.apu) %>%
+  select(group,awadm22, revenue.original.apu, revenue.bsrevonly.4pct.apu, pct.change.bsrev.apu, revenue.4pct.apu, pct.change.4pct.apu) %>%
+  mutate(diff.between.scenarios.apu = revenue.4pct.apu - revenue.bsrevonly.4pct.apu,
+         pct.diff.between.scenarios = diff.between.scenarios.apu / revenue.original.apu) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, 2:9)
+
+datatable(summary.total.rev.apu.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:7)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:4, "$") %>%
+  formatPercentage(5, digits = 2) %>%
+  formatCurrency(6, "$") %>%
+  formatPercentage(7, digits = 2) %>%
+  formatCurrency(8, "$") %>%
+  formatPercentage(9, digits = 2)
+
+
+```
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r summary total rev per apu ruca}
+
+summary.total.rev.apu.ruca <- summary.total.rev.apu %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  drop_na(Dem_Desc) %>%
+  group_by(Dem_Desc) %>%
+  summarize(revenue.original = sum(revenue.original),
+            revenue.4pct = sum(revenue.4pct),
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct),
+            awadm22 = sum(awadm22)) %>%
+  mutate(revenue.original.apu = revenue.original / awadm22,
+         revenue.4pct.apu = revenue.4pct / awadm22,
+         revenue.bsrevonly.4pct.apu = revenue.bsrevonly.4pct / awadm22,
+         pct.change.bsrev.apu = (revenue.bsrevonly.4pct.apu - revenue.original.apu) / revenue.original.apu,
+         pct.change.4pct.apu = (revenue.4pct.apu - revenue.original.apu) / revenue.original.apu) %>%
+  select(Dem_Desc,awadm22, revenue.original.apu, revenue.bsrevonly.4pct.apu, pct.change.bsrev.apu, revenue.4pct.apu, pct.change.4pct.apu) %>%
+  mutate(diff.between.scenarios.apu = revenue.4pct.apu - revenue.bsrevonly.4pct.apu,
+         pct.diff.between.scenarios = diff.between.scenarios.apu / revenue.original.apu) 
+
+datatable(summary.total.rev.apu.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:7)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:4, "$") %>%
+  formatPercentage(5, digits = 2) %>%
+  formatCurrency(6, "$") %>%
+  formatPercentage(7, digits = 2) %>%
+  formatCurrency(8, "$") %>%
+  formatPercentage(9, digits = 2)
+
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r summary total rev per apu pr}
+
+summary.total.rev.apu.pr <- summary.total.rev.apu %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  drop_na(planning.region) %>%
+  group_by(planning.region) %>%
+  summarize(revenue.original = sum(revenue.original),
+            revenue.4pct = sum(revenue.4pct),
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct),
+            awadm22 = sum(awadm22)) %>%
+  mutate(revenue.original.apu = revenue.original / awadm22,
+         revenue.4pct.apu = revenue.4pct / awadm22,
+         revenue.bsrevonly.4pct.apu = revenue.bsrevonly.4pct / awadm22,
+         pct.change.bsrev.apu = (revenue.bsrevonly.4pct.apu - revenue.original.apu) / revenue.original.apu,
+         pct.change.4pct.apu = (revenue.4pct.apu - revenue.original.apu) / revenue.original.apu) %>%
+  select(planning.region,awadm22, revenue.original.apu, revenue.bsrevonly.4pct.apu, pct.change.bsrev.apu, revenue.4pct.apu, pct.change.4pct.apu) %>%
+  mutate(diff.between.scenarios.apu = revenue.4pct.apu - revenue.bsrevonly.4pct.apu,
+         pct.diff.between.scenarios = diff.between.scenarios.apu / revenue.original.apu) 
+
+datatable(summary.total.rev.apu.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:7)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:4, "$") %>%
+  formatPercentage(5, digits = 2) %>%
+  formatCurrency(6, "$") %>%
+  formatPercentage(7, digits = 2) %>%
+  formatCurrency(8, "$") %>%
+  formatPercentage(9, digits = 2)
+
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r summary total rev per apu edr}
+
+summary.total.rev.apu.edr <- summary.total.rev.apu %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  drop_na(edr) %>%
+  group_by(edr) %>%
+  summarize(revenue.original = sum(revenue.original),
+            revenue.4pct = sum(revenue.4pct),
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct),
+            awadm22 = sum(awadm22)) %>%
+  mutate(revenue.original.apu = revenue.original / awadm22,
+         revenue.4pct.apu = revenue.4pct / awadm22,
+         revenue.bsrevonly.4pct.apu = revenue.bsrevonly.4pct / awadm22,
+         pct.change.bsrev.apu = (revenue.bsrevonly.4pct.apu - revenue.original.apu) / revenue.original.apu,
+         pct.change.4pct.apu = (revenue.4pct.apu - revenue.original.apu) / revenue.original.apu) %>%
+  select(edr,awadm22, revenue.original.apu, revenue.bsrevonly.4pct.apu, pct.change.bsrev.apu, revenue.4pct.apu, pct.change.4pct.apu) %>%
+  mutate(diff.between.scenarios.apu = revenue.4pct.apu - revenue.bsrevonly.4pct.apu,
+         pct.diff.between.scenarios = diff.between.scenarios.apu / revenue.original.apu) 
+
+datatable(summary.total.rev.apu.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:7)),
+                         scrollX = TRUE)) %>%
+  formatCurrency(3:4, "$") %>%
+  formatPercentage(5, digits = 2) %>%
+  formatCurrency(6, "$") %>%
+  formatPercentage(7, digits = 2) %>%
+  formatCurrency(8, "$") %>%
+  formatPercentage(9, digits = 2)
+
+
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore .tabset}
 

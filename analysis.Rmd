@@ -1098,7 +1098,9 @@ A 4% increase goes from $6728 to `r dollar((6728*.04)+6728)`.
 
 In this analysis, we are going to measure the "boost" received by each scenario from their original total revenue from the general education revenue formula, and which component of the formula drives the difference between the two scenarios. We will start with school districts, then look at public vs. charter schools, then RUCA categories, planning regions, and economic development regions.
 
-## Summary statistics of two scenarios{.tabset}
+## Aggregated analysis{.tabset}
+
+In this section of the analysis, we are going to explore the boost in revenues observed via aggregating revenues at the categorical (i.e. public vs. charter) and geographical (i.e. planning region). Essentially, which regions and categories receive the highest boost between scenarios, not necessarily the school district.
 
 Let's first take a look at the total dollar amounts for each scenario. The table below is the total revenue provided by the general education revenue under these three scenarios;
 
@@ -1345,13 +1347,15 @@ girafe(ggobj = summary.total.rev.county.map, height_svg = 10, width_svg = 10) %>
 
 
 
-## School districts{.tabset}
+## Not aggregated - School districts{.tabset}
+
+In this section we will keep all revenues and scenarios based at the school district level and not sum up revenues according to difference categories and regions. We will then look at relationships between districts that experience the largest changes in the scenarios and their categories and regions - essentially, do the districts that would experience the largest boost (top 25%) have a relationship to RUCA category and geography? We will use a z-test to analyze the proportions of districts in the top 25% based on categorical and geographical characteristics and whether they are statistically significantly different than the proportion that the schools make up in the entire dataset.
 
 First, we will examine how schools districts are impacted by the increase from each scenario as a percentage of their original total funding from the general education formula in FY22.
 
 The table below provides the total original revenue received in FY22 as well as the total revenues from a 4% increase to the entire general education revenue formula and a 4% increase to the basic education revenue component only. In addition, the table provides the percent change from the original FY22 revenue for each of the scenarios, where those changes rank against their peers, as well as the percentage of the original budget lost if increasing the bsrev only vs. increasing the entire formula.
 
-What's interesting is that if you sort by `Rank of pct lost between  scenarios` you will see that the top three school districts would loss 1% 
+What's interesting is that if you sort by `Rank of pct lost between  scenarios` you will see that the top three school districts would lose 1% 
 
 <br>
 
@@ -1452,7 +1456,7 @@ Let's take a look to see if those schools that experience the largest "boost" fr
 
 `r quantile(comp.total.rev.change.districts$'Percent of original gained between scenarios')`.
 
-The public vs. charter school table shows that there was only 1 charter school in the quartile. Obviously, this means that there is a statistically significant difference since charter schools make up 36% of the entire dataset. There were 126 school districts with the largest difference between the two scenarios are public schools.
+The public vs. charter school table shows that there was only 1 charter school in the top 25%. Obviously, this means that there is a statistically significant difference since charter schools make up 36% of the entire dataset. There were 126 school districts with the largest difference between the two scenarios are public schools.
 
 The RUCA categories also indicate a statistically significant difference between being in the top quartile and it's proportion of the total dataset. The biggest difference is the number of schools located in a urban/town/rural mix county that are in the top quartile -  n = 53, pct = 42% compared to being only 27% of the entire dataset. Enrirely rural and town/rural mix school districts also had a higher percentage of schools in the top quartile compared to their proportion of the total dataset. The other major difference is how few school districts located in entirely urban counties are in the top quartiler compared to it's proportion of the dataset - 10% vs 41% of the dataset.
 
@@ -1635,7 +1639,7 @@ The map is interesting. Obviously, local optional aid is the primary driver in t
 
 <br>
 
-### All districts
+### Driver of differences
 
 ```{r driver of difference between total revenues districts}
 driver.diff.total.rev.districts <- master.4pct %>%
@@ -1757,7 +1761,7 @@ Let's do the same thing we did above, but instead of looking at scenarios in ter
 
 <br>
 
-## Summary statistics of two scenarios{.tabset}
+## Aggregated analysis{.tabset}
 
 We will begin by summarizing total original revenue as well as the two scenarios per APU. The table below provides the total original revenue per APU, the 4% increase to the basic education component only per APU, and the 4% increase to the entire general education formula per APU, as well as the differences between these scenarios. 
 
@@ -1964,11 +1968,53 @@ datatable(summary.total.rev.apu.edr, class = "cell-border stripe", filter = "top
   formatPercentage(7, digits = 2) %>%
   formatCurrency(8, "$") %>%
   formatPercentage(9, digits = 2)
+```
+
+<br>
+
+## {.unnumbered .unlisted .toc-ignore}
+
+Now let's see which counties receive the largest "boost" between the two scenarios. The map below shows that rural counties in SW and NW Minnesota receive the highest boost in dollars per APU by increasing the entire formula by 4% vs. only the basic education component. These counties receive $50 or more per APU by increasing the formula vs. the $40 or less of other counties.
+
+<br>
+
+```{r summary total rev per apu county}
+
+summary.total.rev.apu.county <- summary.total.rev.apu %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  drop_na(`County Name`) %>%
+  group_by(`County Name`, countyfp) %>%
+  summarize(revenue.original = sum(revenue.original),
+            revenue.4pct = sum(revenue.4pct),
+            revenue.bsrevonly.4pct = sum(revenue.bsrevonly.4pct),
+            awadm22 = sum(awadm22)) %>%
+  ungroup() %>%
+  mutate(revenue.original.apu = revenue.original / awadm22,
+         revenue.4pct.apu = revenue.4pct / awadm22,
+         revenue.bsrevonly.4pct.apu = revenue.bsrevonly.4pct / awadm22,
+         pct.change.bsrev.apu = (revenue.bsrevonly.4pct.apu - revenue.original.apu) / revenue.original.apu,
+         pct.change.4pct.apu = (revenue.4pct.apu - revenue.original.apu) / revenue.original.apu) %>%
+  select(`County Name`, countyfp,awadm22, revenue.original.apu, revenue.bsrevonly.4pct.apu, pct.change.bsrev.apu, revenue.4pct.apu, pct.change.4pct.apu) %>%
+  mutate(diff.between.scenarios.apu = revenue.4pct.apu - revenue.bsrevonly.4pct.apu,
+         pct.diff.between.scenarios = diff.between.scenarios.apu / revenue.original.apu) %>%
+  left_join(mn_counties[,c(4,7)], by = "countyfp")
+
+summary.total.rev.apu.county.map <- ggplot(summary.total.rev.apu.county) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = diff.between.scenarios.apu, data_id = countyfp, tooltip = paste(`County Name`, "\nRevenue per APU - original: ", dollar(revenue.original.apu), "\nRevenue per APU - 4% increase to basic education component only: ", dollar(revenue.bsrevonly.4pct.apu), "\nRevenue per APU - 4% increase to entire formula: ", dollar(revenue.4pct.apu), "\nDollars per APU gained by increasing entire formula by 4% vs increasing only basic education: ", dollar(diff.between.scenarios.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::dollar) +
+  labs(title = "Dollars per APU gained by increasing entire formula vs. only\nbasic education component") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = summary.total.rev.apu.county.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
 
 
 ```
 
 <br>
 
-## {.unnumbered .unlisted .toc-ignore .tabset}
+## Components driving the difference in funding per APU
 
+The section above shows that 

@@ -2073,8 +2073,6 @@ change.total.rev.apu.summary.stats.districts <- change.total.rev.apu.districts %
             max = max(value)) %>%
   ungroup() 
 
-names(change.total.rev.apu.summary.stats.districts)
-
 datatable(change.total.rev.apu.summary.stats.districts, class = "cell-border stripe", filter = "top", rownames = FALSE,
           options = list(columnDefs = list(list(className = "dt-center", targets = 1:6)),
                          scrollX = TRUE)) %>%
@@ -2149,8 +2147,6 @@ top.dist.diff.districts <- change.total.rev.apu.districts %>%
   rename(geometry.county = geometry.x,
          geometry.schools = geometry.y)
 
-ggplot(top.dist.diff.districts, aes(diff.between.scenarios)) +
-  geom_histogram(bins = 100)
 top.dist.diff.map <- ggplot(top.dist.diff.districts) +
   geom_sf_interactive(color = "grey85", aes(geometry = geometry.schools, fill = bins, data_id = `District Name`, tooltip = paste(`District Name`, "\nOriginal revenue per APU: ", dollar(revenue.original.apu), "\nPercent increase in revenue from increasing basi education component only to increasing entire formula: ", percent(diff.between.scenarios, accuracy = .01), "\nRank of boost: ", rank, sep = ""))) +
   theme_sf+
@@ -2220,6 +2216,29 @@ datatable(diff.4pct.quantile, class = "cell-border stripe", filter = "top", rown
 
 <br>
 
+For each scenario, there are a number of other ways in which a district could be in the top 25% across the scenarios.
+
+* District receives top 25% boost from increasing basic education component only can also
+    + receive a top 25% boost when the entire formula is increased by 4%, and/or
+    + be in the top 25% of districts that have the largest difference between the two scenarios, or
+    + none of the above.
+    
+* District receives top 25% boost from increasing the entire formula by 4% can also
+    + receive a top 25% boost from increasing the basic education component only, and/or
+    + be in the top 25% of districts that have the largest difference between the two scenarios, or
+    + none of the above.
+    
+* District has a top 25% difference in boost received between the two scenarios can also,
+    + receive a top 25% boost from increasing the basic education component only, and/or
+    + receive a top 25% boost from increasing the entire formula by 4%, or
+    none of the above.
+    
+* District does not end up in the top 25% of boosts or differences.
+
+The chart below shows that 46% of the districts in the dataset do not fall into the top 25% in any scenario. In addition, it shows that 21% of districts receive a top 25% boost from increasing the basic education component only and not in any other scenario. 
+
+<br>
+
 ```{r top quantiles}
 top.quan.bsrev.only.districts <- quantile(change.total.rev.apu.districts$pct.increase.revenue.bsrevonly.4pct.apu, .75) %>%
   unname()
@@ -2242,6 +2261,7 @@ top.25pct.boost.districts <- change.total.rev.apu.districts %>%
                                       ifelse(top.25pct.bsrevonly == "Yes" & top.25pct.entire.formula == "No" & top.25pct.diff == "Yes", "Basic-Diff",
                                              ifelse(top.25pct.bsrevonly == "No" & top.25pct.entire.formula == "Yes" & top.25pct.diff == "No", "Entire",
                                                     ifelse(top.25pct.bsrevonly == "No" & top.25pct.entire.formula == "Yes" & top.25pct.diff == "Yes", "Entire-Diff",
+                                                           
                                                            ifelse(top.25pct.bsrevonly == "No" & top.25pct.entire.formula == "No" & top.25pct.diff == "Yes", "Diff", "None"))))))))
 
 top.25pct.summary <- top.25pct.boost.districts %>%
@@ -2251,17 +2271,53 @@ top.25pct.summary <- top.25pct.boost.districts %>%
   mutate(pct = n / nrow(top.25pct.boost.districts),
          Basic.cat = c("Yes", "Yes", "Yes","No", "No", "No", "No"),
          Entire.cat = c("No", "Yes", "Yes", "No", "Yes", "Yes", "No"),
-         Diff.cat = c("No", "No", "Yes", "Yes", "No", "Yes", "No")) %>%
-  gather(key = "category", value = "confirm.category", 4:6) %>%
-  filter(confirm.category == "Yes") %>%
-  add_row(combo = "Basic-diff", n = 0, pct = 0, category = "Basic.cat", confirm.category = "Yes") %>%
-  add_row(combo = "Basic-diff", n = 0, pct = 0, category = "Diff.cat", confirm.category = "Yes")
+         Diff.cat = c("No", "No", "Yes", "Yes", "No", "Yes", "No"),
+         data_id = seq(n())) %>%
+  arrange(desc(pct)) 
 
-names(top.25pct.summary)
+top.25pct.summary.plot <- ggplot(top.25pct.summary, aes(reorder(combo, -pct), pct)) +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste("Top 25% scenario: ", combo, "\nNumber of districts with this top 25% combination: ", comma(n), "\nPercent of districts with this combination: ", percent(pct, accuracy = .01), sep = ""))) +
+  labs(x="", y = "", color="", title = "Percent of districts in top 25% combination")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_bar+
+  theme(legend.position = "bottom",
+        text = element_text(size = 18),
+        axis.text.x = element_text(angle = 25, hjust = .9))
 
-top.25pct.summary.plot <- ggplot(top.25pct.summary, aes(category, pct, group = combo, fill = combo)) +
-  geom_col_interactive(position = "dodge", aes(data_id = combo)) +
-  labs(x="", y = "", color="", title = "Percent share of total building construction establishments")+
+
+girafe(ggobj = top.25pct.summary.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))   
+
+```
+
+<br>
+
+Let's look at only the districts that fall into the top 25% of boosts or difference. 
+
+<br>
+
+```{r top boosts diff only}
+top.25pct.only.summary.districts <- top.25pct.summary %>%
+  select(combo, n, Basic.cat, Entire.cat, Diff.cat) %>%
+  filter(combo != "None") %>%
+  gather(key = "category", value = "confirmation", 3:5) %>%
+  filter(confirmation == "Yes") %>%
+  select(combo, n, category) %>%
+  add_row(combo = "Basic-diff", n = 0, category = "Basic.cat") %>%
+  add_row(combo = "Basic-diff", n = 0, category = "Diff.cat") %>%
+  group_by(category) %>%
+  mutate(pct = n / sum(n)) %>%
+  ungroup() %>%
+  mutate(data_id = seq(n())) %>%
+  mutate(definition = ifelse(combo == "Basic ed only", "Basic only",
+                             ifelse(combo == "")))
+
+names(top.25pct.only.summary.districts)
+
+top.25pct.only.summary.districts.plot <- ggplot(top.25pct.only.summary.districts, aes(category, pct, fill = combo, group = combo)) +
+  geom_col_interactive(aes(data_id = data_id, tooltip = paste(category, "\nCombination: ", combo, "\nNumber of districts with this combo: ", n, "\nPercent of districts with this combo: ", percent(pct, accuracy = .1), sep = ""))) +
+  labs(x="", y = "", color="", title = "Top 25% combination within scenario")+
   scale_y_continuous(labels=scales::percent)+
   theme_bar+
   scale_fill_manual(values = brewer.pal(n = 7, "RdYlBu"),
@@ -2270,8 +2326,8 @@ top.25pct.summary.plot <- ggplot(top.25pct.summary, aes(category, pct, group = c
         text = element_text(size = 18))
 
 
-girafe(ggobj = top.25pct.summary.plot, width_svg = 10, height_svg = 10) %>%
+girafe(ggobj = top.25pct.only.summary.districts.plot, width_svg = 10, height_svg = 10) %>%
   girafe_options(opts_selection(type = "none"),
-                 opts_sizing(rescale = FALSE))      
+                 opts_sizing(rescale = FALSE))    
 
 ```

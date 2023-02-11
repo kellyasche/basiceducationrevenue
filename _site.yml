@@ -40,12 +40,10 @@ navbar:
           href: options_adjustment.html
     - text: "All categories"
       href: all_categories.html
-    - text: "Scenario - 1%"
-      href: scenarios_1pct.html
-    - text: "Scenario - 4%"
-      href: scenarios_4pct.html
-    - text: "Analysis"
-      href: analysis.html
+    - text: "Analysis - % change in revenue"
+      href: analysis_pct_change.html
+    - text: "Analysis - revenue per apu"
+      href: analysis_rev_apu.html
 output:
   html_document:
     css: "styles.css"

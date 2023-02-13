@@ -1699,92 +1699,359 @@ girafe(ggobj = top.25pct.boost.districts.confirmed.map, height_svg = 10, width_s
 
 Okay, so it definitely looks like there might be some relationships between location and whether a district receives the 25% highest boosts. Let's run the numbers and look at the proportions.
 
-The table below shows that in all the scenarios public districts are significantly more likely to receive a top 25% boost compared to charter districts.
+Below are a bunch of tabs breaking out the relationships between each scenario and whether a district public vs. charter, RUCA category, and regions.
+
+* Public vs. Charter: The likelihood that a public school falls into the top 25% of change in each scenario is significantly higher than being a charter school. Public schools make up 92% to 100% of the top 25% in each scenario while they compose 64.2% of the districts in the dataset.
+
+* RUCA: There wasn't a statistically significant difference between whether a district was located in one of the RUCA categories and if they received a top 25% boost from increasing the basic education revenue component only. However, there was a relationship in whether a district was in a specific RUCA category and receiving a top 25% boost from increasing the entire formula and top 25% largest difference between the two scenarios. 
+    + Increase entire formula: Districts in urban/town/rural mix and town/rural mix categories were significantly more likely to receive a top 25% boost from this scenario, while more urban school districts were not as well as entirely rural.
+    + Difference between two scenarios: The differences become even more intense in this scenario. Urban/town/rural as well as town/rural school districts were significantly more likely to be in the top 25% of difference between the two scenarios compared to urban. Entirely rural districts were slightly more likely.
+    
+* Planning Regions: There was no relationship between planning regions and whether a district received a top 25% boost from increasing the basic education revenue component by 4%. However, there were relationships in the other scenarios;
+    + Increase entire formula: Regions in the central and southern part of the state outside of the seven county metro were significantly more likely to receive a top 25% boost in this scenario. Northern Minnesota districts were relatively the same while twin cities metro was significantly less likely.
+    + Difference between two scenarios: Regions in the central and southern part of the state outside of the seven county metro were significantly more likely to have a top 25% difference between the two scenarios.
+    
+* EDR: There was no relationship between EDR and whether a district received a top 25% boost from increasing the basic education revenue component by 4%. However, there were relationships in the other scenarios;
+    + Increase entire formula: EDRs in the sourthern portion of Minnesota typically have a better change of receiving a top 25% boost in this scenario while northern MN and the twin cities are significantly less.
+    + Difference between two scenarios: Same as above.
 
 
 
 <br>
 
-### Public vs. Charter
-
-
+### Public vs. Charter{.tabset}
 
 <br>
 
-```{r top 25% related by group}
-top.25pct.related <- top.25pct.boost.districts %>%
-  left_join(district.join, by = c("District Name", "number", "type"))
+#### Basic education component only
 
-top.25pct.related.group <- top.25pct.related %>%
+<br>
+
+```{r relationship basic ed component group}
+relationship.group <- top.25pct.boost.districts %>%
+  left_join(district.join, by = c("number", "type")) %>%
   select(group, top.25pct.bsrevonly, top.25pct.entire.formula, top.25pct.diff) %>%
-  gather(key = "scenario", value = "top.25pct.increase", 2:4) %>%
-  filter(top.25pct.increase == "Yes") %>%
-  group_by(group, scenario) %>%
+  gather(key = "scenario", value = "confirmed", 2:4) %>%
+  group_by(group, scenario, confirmed) %>%
   summarize(n = n()) %>%
   ungroup() %>%
-  complete(group, scenario, fill = list(n = 0)) %>%
+    filter(confirmed == "Yes") %>%
   group_by(scenario) %>%
-  mutate(pct.n = n / sum(n)) %>%
+  mutate(total.districts = sum(n)) %>%
   ungroup() %>%
   left_join(group.codes, by = c("group" = "Code")) %>%
-  select(Definition, scenario, n, pct.n) %>%
-  left_join(prop.group, by = "Definition") %>%
-  arrange(scenario)
+  select(Definition, scenario, n, total.districts) %>%
+  complete(Definition, scenario, fill = list(n = 0, total.districts = 508)) %>%
+  mutate(pct.top25pct = n / total.districts) %>%
+  left_join(prop.group, by = "Definition")
 
-names(top.25pct.related.group)
+relationship.bsrevonly.group <- relationship.group %>%
+  filter(scenario == "top.25pct.bsrevonly") %>%
+  select(Definition, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
 
-datatable(top.25pct.related.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)),
-                         scrollX = TRUE)) %>%
-  formatPercentage(4, digits = 2) %>%
-  formatPercentage(6, digits = 2)
+datatable(relationship.bsrevonly.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
 
+tags$br()
+
+prop.test(relationship.bsrevonly.group$n, relationship.bsrevonly.group$total.dataset.n)
 ```
 
 <br>
 
-### RUCA
+#### Increase entire formula
 
 <br>
 
-```{r top 25% related by ruca}
+```{r relationship entire formula group}
+relationship.entire.formula.group <- relationship.group %>%
+  filter(scenario == "top.25pct.entire.formula") %>%
+  select(Definition, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
 
-top.25pct.related.ruca <- top.25pct.related %>%
+datatable(relationship.entire.formula.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.entire.formula.group$n, relationship.entire.formula.group$total.dataset.n)
+```
+
+<br>
+
+#### Largest boost between two scenarios
+
+<br>
+
+```{r relationship difference group}
+relationship.diff.group <- relationship.group %>%
+  filter(scenario == "top.25pct.diff") %>%
+  select(Definition, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
+
+datatable(relationship.diff.group, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.diff.group$n, relationship.diff.group$total.dataset.n)
+```
+
+<br>
+
+### RUCA{.tabset}
+
+<br>
+
+#### Basic education component only
+
+<br>
+
+```{r relationship basic ed component ruca}
+relationship.ruca <- top.25pct.boost.districts %>%
+  left_join(district.join, by = c("number", "type")) %>%
   select(Dem_Desc, top.25pct.bsrevonly, top.25pct.entire.formula, top.25pct.diff) %>%
-  gather(key = "scenario", value = "top.25pct.increase", 2:4) %>%
-  filter(top.25pct.increase == "Yes") %>%
-  group_by(Dem_Desc, scenario) %>%
+  gather(key = "scenario", value = "confirmed", 2:4) %>%
+  group_by(Dem_Desc, scenario, confirmed) %>%
   summarize(n = n()) %>%
   ungroup() %>%
-  complete(Dem_Desc, scenario, fill = list(n = 0)) %>%
+  filter(confirmed == "Yes") %>%
   group_by(scenario) %>%
-  mutate(pct.n = n / sum(n)) %>%
+  mutate(total.districts = sum(n)) %>%
   ungroup() %>%
-  left_join(prop.ruca, by = "Dem_Desc") %>%
-  arrange(scenario)
+  complete(Dem_Desc, scenario, fill = list(n = 0, total.districts = 508)) %>%
+  mutate(pct.top25pct = n / total.districts) %>%
+  left_join(prop.ruca, by = "Dem_Desc")
 
+relationship.bsrevonly.ruca <- relationship.ruca %>%
+  filter(scenario == "top.25pct.bsrevonly") %>%
+  select(Dem_Desc, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.prop) 
 
-datatable(top.25pct.related.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
-          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)),
-                         scrollX = TRUE)) %>%
-  formatPercentage(4, digits = 2) %>%
-  formatPercentage(6, digits = 2)
+datatable(relationship.bsrevonly.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
 
+tags$br()
+
+prop.test(relationship.bsrevonly.ruca$n, relationship.bsrevonly.ruca$total.dataset.n)
 ```
 
 <br>
 
-### Planning Region
+#### Increase entire formula
 
 <br>
 
+```{r relationship entire formula ruca}
+relationship.entire.formula.ruca <- relationship.ruca %>%
+  filter(scenario == "top.25pct.entire.formula") %>%
+  select(Dem_Desc, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.prop) 
+
+datatable(relationship.entire.formula.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.entire.formula.ruca$n, relationship.entire.formula.ruca$total.dataset.n)
+```
+
 <br>
 
-### EDR
+#### Largest boost between two scenarios
 
 <br>
 
+```{r relationship difference ruca}
+relationship.diff.ruca <- relationship.ruca %>%
+  filter(scenario == "top.25pct.diff") %>%
+  select(Dem_Desc, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.prop) 
+
+datatable(relationship.diff.ruca, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.diff.ruca$n, relationship.diff.ruca$total.dataset.n)
+```
+
 <br>
+
+### Planning Region{.tabset}
+
+<br>
+
+#### Basic education component only
+
+<br>
+
+```{r relationship basic ed component pr}
+relationship.pr <- top.25pct.boost.districts %>%
+  left_join(district.join, by = c("number", "type")) %>%
+  select(planning.region, top.25pct.bsrevonly, top.25pct.entire.formula, top.25pct.diff) %>%
+  gather(key = "scenario", value = "confirmed", 2:4) %>%
+  group_by(planning.region, scenario, confirmed) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+    filter(confirmed == "Yes") %>%
+  group_by(scenario) %>%
+  mutate(total.districts = sum(n)) %>%
+  ungroup() %>%
+  complete(planning.region, scenario, fill = list(n = 0, total.districts = 508)) %>%
+  mutate(pct.top25pct = n / total.districts) %>%
+  left_join(prop.pr, by = "planning.region")
+
+relationship.bsrevonly.pr <- relationship.pr %>%
+  filter(scenario == "top.25pct.bsrevonly") %>%
+  select(planning.region, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
+
+datatable(relationship.bsrevonly.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.bsrevonly.pr$n, relationship.bsrevonly.pr$total.dataset.n)
+```
+
+<br>
+
+#### Increase entire formula
+
+<br>
+
+```{r relationship entire formula pr}
+relationship.entire.formula.pr <- relationship.pr %>%
+  filter(scenario == "top.25pct.entire.formula") %>%
+  select(planning.region, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
+
+datatable(relationship.entire.formula.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.entire.formula.pr$n, relationship.entire.formula.pr$total.dataset.n)
+```
+
+<br>
+
+#### Largest boost between two scenarios
+
+<br>
+
+```{r relationship difference pr}
+relationship.diff.pr <- relationship.pr %>%
+  filter(scenario == "top.25pct.diff") %>%
+  select(planning.region, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
+
+datatable(relationship.diff.pr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.diff.pr$n, relationship.diff.pr$total.dataset.n)
+```
+
+<br>
+
+### EDR{.tabset}
+
+<br>
+
+#### Basic education component only
+
+<br>
+
+```{r relationship basic ed component edr}
+relationship.edr <- top.25pct.boost.districts %>%
+  left_join(district.join, by = c("number", "type")) %>%
+  select(edr, top.25pct.bsrevonly, top.25pct.entire.formula, top.25pct.diff) %>%
+  gather(key = "scenario", value = "confirmed", 2:4) %>%
+  group_by(edr, scenario, confirmed) %>%
+  summarize(n = n()) %>%
+  ungroup() %>%
+    filter(confirmed == "Yes") %>%
+  group_by(scenario) %>%
+  mutate(total.districts = sum(n)) %>%
+  ungroup() %>%
+  complete(edr, scenario, fill = list(n = 0, total.districts = 508)) %>%
+  mutate(pct.top25pct = n / total.districts) %>%
+  left_join(prop.edr, by = "edr")
+
+relationship.bsrevonly.edr <- relationship.edr %>%
+  filter(scenario == "top.25pct.bsrevonly") %>%
+  select(edr, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
+
+datatable(relationship.bsrevonly.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.bsrevonly.edr$n, relationship.bsrevonly.edr$total.dataset.n)
+```
+
+<br>
+
+#### Increase entire formula
+
+<br>
+
+```{r relationship entire formula edr}
+relationship.entire.formula.edr <- relationship.edr %>%
+  filter(scenario == "top.25pct.entire.formula") %>%
+  select(edr, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
+
+datatable(relationship.entire.formula.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.entire.formula.edr$n, relationship.entire.formula.edr$total.dataset.n)
+```
+
+<br>
+
+#### Largest boost between two scenarios
+
+<br>
+
+```{r relationship difference edr}
+relationship.diff.edr <- relationship.edr %>%
+  filter(scenario == "top.25pct.diff") %>%
+  select(edr, scenario, n, pct.top25pct, total.dataset.n, total.dataset.pct.n) 
+
+datatable(relationship.diff.edr, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:5)))) %>%
+  formatPercentage(4, digits = 1) %>%
+  formatPercentage(6, digits = 1)
+
+tags$br()
+
+prop.test(relationship.diff.edr$n, relationship.diff.edr$total.dataset.n)
+```
+
+<br>
+
+Okay, so there are relationships between scenarios and the type of school, RUCA category, and geographic location. Let's determine what's driving these relationships.
+
+
 
 
 

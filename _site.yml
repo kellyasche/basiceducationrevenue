@@ -44,6 +44,8 @@ navbar:
       href: analysis_pct_change.html
     - text: "Analysis - revenue per apu"
       href: analysis_rev_apu.html
+    - text: "Components that drive differences"
+      href: analysis_components_drivers.html
 output:
   html_document:
     css: "styles.css"

@@ -1,0 +1,547 @@
+---
+title: "Analysis - long term impacts"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+library(ggpattern)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         Dem_Desc = ifelse(Name == "Minnesota", "Minnesota", Dem_Desc) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.ruca <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r shapefiles}
+school_districts <- read_sf("Data/Shapefiles/New school shapefiles/School_district_boundaries.shp", quiet = TRUE) %>%
+  rename(type = SDTYPE,
+         number = SDNUMBER) %>%
+  mutate(number = as.numeric(number),
+         type = as.numeric(type))
+
+
+```
+
+
+```{r master orignal}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         eqgroup.label = ifelse(is.na(eqgroup.label), "", eqgroup.label)) %>%
+  filter(group %in% c(1,4))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+var.codes <- read_xlsx("Data/Formula/primary variable codes.xlsx")
+
+categories <- c("bsrev", "exdayr", "gtrev", "smlrev", "decrev", "locaid", "afdc22", "totlep", "totspar", "cexaid", "tsparrev", "eqaid", "hhaid", "penrev")
+
+master.original <- original %>%
+  select(`District Name`, number, type, categories) %>%
+  gather(key = "categories", value = "revenue.original", 4:17) 
+
+```
+
+
+```{r district join}
+district.join <- original %>%
+  select(`District Name`, number, type, group, `County Name`, countyfp, Dem_Desc, planning.region, edr, awadm22) %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+```
+
+```{r master 5yr scenarios}
+master.5yr.scenarios.districts <- read_csv("Data/Formula/Master-5yr-scenarios-district.csv")
+
+scenarios.5yr.districts <-  master.5yr.scenarios.districts %>%
+  gather(key = "year", value = "revenue", 5:16) %>%
+  mutate(scenario = ifelse(str_detect(year, "bsrevonly"), "Basic education only", "Entire formula"),
+         year = str_sub(year, -3, -3),
+         year = as.numeric(year)) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) 
+
+```
+
+
+
+
+
+```{r district prop}
+prop.group <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(group) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, total.dataset.n, total.dataset.pct.n)
+
+prop.ruca <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(Dem_Desc) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.prop = total.dataset.n / sum(total.dataset.n)) 
+
+prop.pr <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(planning.region) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n))
+
+prop.edr <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(edr) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n))
+
+```
+
+<br>
+
+# Analysis - revenue per APU
+
+Let's take a look at the total revenue per apu for the original revenue, the revenue after increasing the basic education component by 4%, and the revenue after increasing the entire formula by 4%. 
+
+The maps below provide the total revenue per APU for each scenario and the shades of color are "binned" by quintile - meaning each bin has 20% of the total public school districts, which is between 65 and 66 districts per bin.
+
+The first thing that jumps out from the maps below is that our most rural districts, particularly along the borders of the state, receive the highest revenue per APU, no matter which scenario.
+
+What we are looking for if there are any shifts/patterns in districts that receive the highest revenue per APU over the course of five years for each scenario. Glancing at these maps shows that there is very little change. 
+
+<br>
+
+
+```{r prep total revenue per APU}
+total.rev.districts <- scenarios.5yr.districts %>%
+  filter(group == 1) %>%
+  group_by(`District Name`, number, type, group, year, scenario) %>%
+  summarize(total.rev = sum(revenue, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(district.join[,c(1,2,3,4,10)], by = c("District Name", "number", "type", "group")) %>%
+  mutate(total.rev.apu = total.rev / awadm22) %>%
+  filter(year %in% c(0,5)) %>%
+  mutate(scenario = ifelse(year == 0, "Original", scenario)) %>%
+  distinct(number, type, group, year, scenario, total.rev, awadm22, total.rev.apu, .keep_all = TRUE) %>%
+  select(-year, -awadm22, -total.rev) %>%
+  drop_na(total.rev.apu) %>%
+  filter(!is.infinite(total.rev.apu)) %>%
+  spread(scenario, total.rev.apu) %>%
+  mutate(original.quant = cut(Original,
+                              breaks = c(unname(quantile(.$Original, 0)),
+                                         unname(quantile(.$Original, .2)),
+                                         unname(quantile(.$Original, .4)),
+                                         unname(quantile(.$Original, .6)),
+                                         unname(quantile(.$Original, .8)),
+                                         unname(quantile(.$Original, 1))),
+                              labels = c(paste(dollar(unname(quantile(.$Original, 0))), " to ", dollar(unname(quantile(.$Original,  .2))), sep = ""),
+                                         paste(dollar(unname(quantile(.$Original,  .2))), " to ", dollar(unname(quantile(.$Original,  .4))), sep = ""),
+                                         paste(dollar(unname(quantile(.$Original,  .4))), " to ", dollar(unname(quantile(.$Original,  .6))), sep = ""),
+                                         paste(dollar(unname(quantile(.$Original,  .6))), " to ", dollar(unname(quantile(.$Original,  .8))), sep = ""),
+                                         paste(dollar(unname(quantile(.$Original,  .8))), " to ", dollar(unname(quantile(.$Original,  1))), sep = "")),
+                              include.lowest = TRUE),
+         basic.ed.quant = cut(`Basic education only`,
+                              breaks = c(unname(quantile(.$`Basic education only`, 0)),
+                                         unname(quantile(.$`Basic education only`, .2)),
+                                         unname(quantile(.$`Basic education only`, .4)),
+                                         unname(quantile(.$`Basic education only`, .6)),
+                                         unname(quantile(.$`Basic education only`, .8)),
+                                         unname(quantile(.$`Basic education only`, 1))),
+                              labels = c(paste(dollar(unname(quantile(.$`Basic education only`, 0))), " to ", dollar(unname(quantile(.$`Basic education only`,  .2))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Basic education only`,  .2))), " to ", dollar(unname(quantile(.$`Basic education only`,  .4))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Basic education only`,  .4))), " to ", dollar(unname(quantile(.$`Basic education only`,  .6))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Basic education only`,  .6))), " to ", dollar(unname(quantile(.$`Basic education only`,  .8))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Basic education only`,  .8))), " to ", dollar(unname(quantile(.$`Basic education only`,  1))), sep = "")),
+                              include.lowest = TRUE),
+         entire.formula.quant = cut(`Entire formula`,
+                              breaks = c(unname(quantile(.$`Entire formula`, 0)),
+                                         unname(quantile(.$`Entire formula`, .2)),
+                                         unname(quantile(.$`Entire formula`, .4)),
+                                         unname(quantile(.$`Entire formula`, .6)),
+                                         unname(quantile(.$`Entire formula`, .8)),
+                                         unname(quantile(.$`Entire formula`, 1))),
+                              labels = c(paste(dollar(unname(quantile(.$`Entire formula`, 0))), " to ", dollar(unname(quantile(.$`Entire formula`,  .2))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Entire formula`,  .2))), " to ", dollar(unname(quantile(.$`Entire formula`,  .4))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Entire formula`,  .4))), " to ", dollar(unname(quantile(.$`Entire formula`,  .6))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Entire formula`,  .6))), " to ", dollar(unname(quantile(.$`Entire formula`,  .8))), sep = ""),
+                                         paste(dollar(unname(quantile(.$`Entire formula`,  .8))), " to ", dollar(unname(quantile(.$`Entire formula`,  1))), sep = "")),
+                              include.lowest = TRUE),
+         original.quant.rank = ifelse(Original < quantile(.$Original, .2), 1,
+                                      ifelse(Original < quantile(.$Original, .4) & Original >= quantile(.$Original, .2), 2,
+                                             ifelse(Original < quantile(.$Original, .6) & Original >= quantile(.$Original, .4), 3,
+                                                    ifelse(Original < quantile(.$Original, .8) & Original >= quantile(.$Original, .6), 4, 5)))),
+         original.quant.rank = ifelse(Original < quantile(.$Original, .2), 1,
+                                      ifelse(Original < quantile(.$Original, .4) & Original >= quantile(.$Original, .2), 2,
+                                             ifelse(Original < quantile(.$Original, .6) & Original >= quantile(.$Original, .4), 3,
+                                                    ifelse(Original < quantile(.$Original, .8) & Original >= quantile(.$Original, .6), 4, 5)))),
+         original.quant.rank = ifelse(Original < quantile(.$Original, .2), 1,
+                                      ifelse(Original < quantile(.$Original, .4) & Original >= quantile(.$Original, .2), 2,
+                                             ifelse(Original < quantile(.$Original, .6) & Original >= quantile(.$Original, .4), 3,
+                                                    ifelse(Original < quantile(.$Original, .8) & Original >= quantile(.$Original, .6), 4, 5)))),
+         bsrevonly.quant.rank = ifelse(`Basic education only` < quantile(.$`Basic education only`, .2), 1,
+                                      ifelse(`Basic education only` < quantile(.$`Basic education only`, .4) & `Basic education only` >= quantile(.$`Basic education only`, .2), 2,
+                                             ifelse(`Basic education only` < quantile(.$`Basic education only`, .6) & `Basic education only` >= quantile(.$`Basic education only`, .4), 3,
+                                                    ifelse(`Basic education only` < quantile(.$`Basic education only`, .8) & `Basic education only` >= quantile(.$`Basic education only`, .6), 4, 5)))),
+         entire.formula.quant.rank = ifelse(`Entire formula` < quantile(.$`Entire formula`, .2), 1,
+                                      ifelse(`Entire formula` < quantile(.$`Entire formula`, .4) & `Entire formula` >= quantile(.$`Entire formula`, .2), 2,
+                                             ifelse(`Entire formula` < quantile(.$`Entire formula`, .6) & `Entire formula` >= quantile(.$`Entire formula`, .4), 3,
+                                                    ifelse(`Entire formula` < quantile(.$`Entire formula`, .8) & `Entire formula` >= quantile(.$`Entire formula`, .6), 4, 5)))),
+         bsrevonly.change = ifelse(bsrevonly.quant.rank > original.quant.rank, "Moved up",
+                                   ifelse(bsrevonly.quant.rank < original.quant.rank, "Moved down", "No change")),
+         entire.formula.change = ifelse(entire.formula.quant.rank > original.quant.rank, "Moved up", 
+                                        ifelse(entire.formula.quant.rank < original.quant.rank, "Moved down", "No change"))) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type")) 
+  
+total.rev.districts.original.map <- ggplot(total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = original.quant, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - original: ", dollar(Original), "\nPercentile among public school districts in revenue per APU: ", original.quant, sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(reverse = TRUE, ncol = 1)) +
+  labs(title = "Original revenue", subtitle = "Our most rural school districts receive the highest\nrevenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18),
+        legend.position = "bottom",
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12))
+
+
+total.rev.districts.bsrevonly.map <- ggplot(total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = basic.ed.quant, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - increase to basic ed only: ", dollar(`Basic education only`), "\nPercentile among public school districts in revenue per APU: ", basic.ed.quant, sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(reverse = TRUE, ncol = 1)) +
+  labs(title = "Increase to basic ed revenue only", subtitle = "Our most rural school districts receive the highest\nrevenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        legend.position = "bottom")
+
+total.rev.districts.entire.formula.map <- ggplot(total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = entire.formula.quant, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - increase to entire formula: ", dollar(`Entire formula`), "\nPercentile among public school districts in revenue per APU: ", entire.formula.quant, sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(reverse = TRUE, ncol = 1)) +
+  scale_color_manual(values = brewer.pal(n = 6, "OrRd")) +
+  labs(title = "Increase to entire formula", subtitle = "Our most rural school districts receive the highest\nrevenue per APU") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18),
+        legend.position = "bottom",
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12))
+
+title <- ggdraw() +
+  draw_label(
+    "Total revenue per APU by each scenario",
+    fontface = "bold",
+    x = 0,
+    hjust = 0,
+    size = 24) +
+  theme(
+    plot.margin = margin(100,0,0,0)
+  )
+
+plot.row.1 <- plot_grid(total.rev.districts.original.map, total.rev.districts.bsrevonly.map, ncol = 2)
+
+plot.row.2 <- plot_grid(NULL, total.rev.districts.entire.formula.map, NULL, ncol = 3, rel_widths = c(.25,.5,.25), align = c("hv"))
+  
+girafe(ggobj = plot_grid(title, plot.row.1, plot.row.2, ncol = 1, rel_heights = c(0.1, 1, 1)), height_svg = 20, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+<br>
+
+Let's see if any of the districts shift in the quantiles going from the original to each of the scenarios.
+
+The maps below highlight the districts that shifted quintiles from their original revenue quintile "rank". There are very few that change. 
+
+When increasing the basic education component only, 8 schools shift - 4 move up one quintile while 4 others move down.
+
+When increasing the entire formula 14 districts shift - 7 move up and 7 move down one quintile rank.
+
+<br>
+
+```{r quintile shifts maps}
+quintile.shifts.districts.bsrevonly.map <- ggplot(total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = bsrevonly.change, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - original revenue: ", dollar(Original), "\nPercentile rank among public school districts: ", original.quant.rank,  "\nTotal revenue per APU - increase to basic ed only: ", dollar(`Basic education only`), "\nPercentile rank among public school districts in revenue per APU: ", bsrevonly.quant.rank, sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = c("#d7191c", "#2b83ba", "grey"),
+                    guide = guide_legend(reverse = FALSE, ncol = 2)) +
+  labs(title = "Increase to basic ed revenue only", subtitle = "Four moved, Four moved down") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        legend.position = "bottom",
+        plot.margin = margin(-200,0,0,0))
+
+quintile.shifts.districts.entire.formula.map <- ggplot(total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = entire.formula.change, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - original: ", dollar(Original), "\nPercentil rank among public school districts: ", original.quant.rank, "\nTotal revenue per APU - increase to entire formula: ", dollar(`Entire formula`), "\nPercentile among public school districts in revenue per APU: ", entire.formula.quant.rank, sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = c("#d7191c", "#2b83ba", "grey"),
+                    guide = guide_legend(reverse = FALSE, ncol = 2)) +
+  labs(title = "Increase to entire formula", subtitle = "7 shift up, 7 shift down") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18),
+        legend.position = "bottom",
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        plot.margin = margin(-200,0,0,0))
+
+
+title <- ggdraw() +
+  draw_label(
+    "Districts that moved up or down a quintile",
+    fontface = "bold",
+    x = 0,
+    hjust = 0,
+    size = 24) +
+  theme(
+    plot.margin = margin(0,0,0,0)
+  )
+
+plot.row.1 <- plot_grid(quintile.shifts.districts.bsrevonly.map, quintile.shifts.districts.entire.formula.map, ncol = 2)
+  
+girafe(ggobj = plot_grid(title, plot.row.1, ncol = 1, rel_heights = c(0.1, .9)), height_svg = 12, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+# Analysis - pct change in revenue per APU
+
+Even though there doesn't seem to be much change or shift when comparing revenue per APU across all districts, the percentage change might highlight some patterns.
+
+The maps below show the percent increase from the FY22 total revenues for each scenario and they show a pretty clear pattern.
+
+When increasing the basic education component only, the highest percent increases occur in districts with higher property values such as the central lakes regions and the suburbs. However, if the entire formula increases, the highest percentages are in districts with lower property values such as central, western, and southern Minnesota.
+
+<br>
+
+```{r pct change districts}
+pct.change.total.rev.districts <- total.rev.districts %>%
+  mutate(pct.change.bsrevonly = (`Basic education only` - Original) / Original,
+         pct.change.entire.formula = (`Entire formula` - Original) / Original) %>%
+  mutate(quantile.pct.change.bsrevonly = cut(pct.change.bsrevonly,
+                                             breaks = c(quantile(.$pct.change.bsrevonly, probs = seq(0,1, by = .20))),
+                                             labels = c(paste(percent(unname(quantile(.$pct.change.bsrevonly, 0)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.bsrevonly, .20)), accuracy = .01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.bsrevonly, .20)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.bsrevonly, .40)), accuracy = .01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.bsrevonly, .40)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.bsrevonly, .60)), accuracy = .01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.bsrevonly, .60)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.bsrevonly, .80)), accuracy = ,01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.bsrevonly, .80)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.bsrevonly, 1)), accuracy = .01), sep = "")),
+                                             include.lowest = TRUE),
+         quantile.pct.change.entire.formula = cut(pct.change.entire.formula,
+                                                  breaks = c(quantile(.$pct.change.entire.formula, probs = seq(0,1, by = .20))),
+                                                  labels = c(paste(percent(unname(quantile(.$pct.change.entire.formula, 0)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.entire.formula, .20)), accuracy = .01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.entire.formula, .20)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.entire.formula, .40)), accuracy = .01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.entire.formula, .40)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.entire.formula, .60)), accuracy = .01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.entire.formula, .60)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.entire.formula, .80)), accuracy = ,01), sep = ""),
+                                                        paste(percent(unname(quantile(.$pct.change.entire.formula, .80)), accuracy = .01), " to ", percent(unname(quantile(.$pct.change.entire.formula, 1)), accuracy = .01), sep = "")),
+                                             include.lowest = TRUE))
+
+pct.change.bsrevonly.districts.map <- ggplot(pct.change.total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = quantile.pct.change.bsrevonly, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - original revenue: ", dollar(Original), "\nPercentile rank among public school districts: ", original.quant.rank,  "\nTotal revenue per APU - increase to basic ed only: ", dollar(`Basic education only`), "\nPercentile rank among public school districts in revenue per APU: ", bsrevonly.quant.rank, "\nPercent change in revenue: ", percent(pct.change.bsrevonly, accuracy = .01), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(reverse = FALSE, ncol = 2)) +
+  labs(title = "Increase to basic education only", subtitle = "Largest increases occur in areas with high property values") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        legend.position = "bottom",
+        plot.margin = margin(-200,0,0,0))
+
+pct.change.entire.formula.districts.map <- ggplot(pct.change.total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = quantile.pct.change.entire.formula, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - original revenue: ", dollar(Original), "\nPercentile rank among public school districts: ", original.quant.rank,  "\nTotal revenue per APU - increase to basic ed only: ", dollar(`Basic education only`), "\nPercentile rank among public school districts in revenue per APU: ", entire.formula.quant.rank, "\nPercent change in revenue: ", percent(pct.change.entire.formula, accuracy = .01), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(reverse = FALSE, ncol = 2)) +
+  labs(title = "Increase to the entire formula", subtitle = "Largest increases occur in districts with low property values") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18),
+        plot.title = element_text(size = 16),
+        plot.subtitle = element_text(size = 12),
+        legend.position = "bottom",
+        plot.margin = margin(-200,0,0,0))
+
+title <- ggdraw() +
+  draw_label(
+    "Percent change in total revenue per APU from original revenue",
+    fontface = "bold",
+    size = 24,
+    hjust = 0,
+    x = 0
+  ) +
+  theme(
+    plot.margin = margin(0,0,0,0)
+  )
+
+pct.change.total.rev.districts.row.1 <- plot_grid(pct.change.bsrevonly.districts.map, pct.change.entire.formula.districts.map, ncol = 2)
+
+girafe(ggobj = plot_grid(title, pct.change.total.rev.districts.row.1, rel_heights = c(.1, .9), ncol = 1), height_svg = 12, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+To get a clear picture, lets see what districts shift up and down in their quintile rank when comparing the scenario that increases the entire formula vs. only increasing the basic education component.
+
+The chart below shows that there is quite a bit of movement in terms of the quintile rank in pct change between the two scenarios. When comparing quintile ranks from the basic education only scenario with increasing the entire formula, districts in the lakes regions and suburbs drop between 2 and 4 ranks in their quintile while property poor schools increase a similar amount of ranks. 
+
+<br>
+
+```{r pct change quintil rank shift}
+quintile.rank.pct.change.total.rev.districts <- pct.change.total.rev.districts %>%
+  mutate(quintile.rank.pct.change.bsrevonly = cut(pct.change.bsrevonly,
+                                                  breaks = c(quantile(.$pct.change.bsrevonly, probs = seq(0,1, .2))),
+                                                  labels = c(1, 2, 3, 4, 5),
+                                                  include.lowest = TRUE),
+         quintile.rank.pct.change.entire.formula = cut(pct.change.entire.formula,
+                                                       breaks = c(quantile(.$pct.change.entire.formula, probs = seq(0, 1, .2))),
+                                                       labels = c(1, 2, 3, 4, 5),
+                                                       include.lowest = TRUE),
+         quintile.rank.pct.change.bsrevonly = as.numeric(quintile.rank.pct.change.bsrevonly),
+         quintile.rank.pct.change.entire.formula = as.numeric(quintile.rank.pct.change.entire.formula),
+         quintile.shifts = quintile.rank.pct.change.entire.formula - quintile.rank.pct.change.bsrevonly,
+         quintile.shifts = as.factor(quintile.shifts))
+
+quintile.rank.pct.change.total.rev.districts.map <- ggplot(quintile.rank.pct.change.total.rev.districts) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = quintile.shifts, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU: ", dollar(Original), "\nTotal revenue per APU: ", dollar(`Basic education only`), "\nPercent change - original to basic education only: ", percent(pct.change.bsrevonly, accuracy = .1),  "\nTotal revenue per APU - increase entire formula: ", dollar(`Entire formula`), "\nPercent change - original to increaseing entire formula: ", percent(pct.change.entire.formula, accuracy = .1), "\nShift in quintile from basic education only to increasing entire formula: ", quintile.shifts, sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 9, "RdYlBu")) +
+  labs(title = "Increase or decrease in quintile rank for pct change from\noriginal", subtitle = "Property rich districts drop while property poor districts move up") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = quintile.rank.pct.change.total.rev.districts.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```

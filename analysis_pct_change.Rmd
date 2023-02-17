@@ -208,7 +208,7 @@ locaid.4pct <- original %>%
          loctier1.4pct = ifelse(localo.4pct >= (300*.04) + 300, (300*.04) + 300, loctier1.4pct),
          loctier1.4pct = ifelse(localo.4pct < (300*.04) + 300, localo.4pct, loctier1.4pct),
          loctier2.4pct = ifelse(loctier1.4pct == (300*.04)+300, localo.4pct - loctier1.4pct, loctier2.4pct),
-         loctier2 = ifelse(loctier1.4pct < (300*.04) + 300, 0, loctier2.4pct),
+         loctier2.4pct = ifelse(loctier1.4pct < (300*.04) + 300, 0, loctier2.4pct),
          loctier1rev.4pct = round(loctier1.4pct * awadm22),
          loctier2rev.4pct = round(loctier2.4pct * awadm22),
          loctier1_eq_factor.4pct = (880000 * .04) + 880000,

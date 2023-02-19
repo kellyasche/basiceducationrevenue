@@ -39,6 +39,7 @@ reset_font_cache()
 library(ggtext)
 library(gmodels)
 library(ggpattern)
+library(EnvStats)
 
 ```
 
@@ -376,6 +377,271 @@ girafe(ggobj = plot_grid(title, plot.row.1, plot.row.2, ncol = 1, rel_heights = 
 ```
 <br>
 
+## Relationships{.tabset}
+
+Next, let's see if there are any patterns or relationships in these increases depending on type of school, it's RUCA category, and regions. The charts below provide each school district's total revenue per APU for each scenario, a boxplot for each scenario, as well as the relationship between type of school, RUCA category, and region to it's total revenue per APU.
+
+* Charter vs public: The box plots indicate a consistent pattern where charter schools have a significantly higher total revenue per APU median than public schools. The t-test also indicates a relationship between the type of school and it's total revenue per APU.
+* RUCA: The RUCA box plots show that entirely rural school districts have a consistently higher revenue per APU median for each scenario than all other RUCA categories. Town/rural mix schools also have consistently higher revenue per APU than the other two categories. Entirely urban as well as urban/town/rural mix schools have very similar median, but significantly different middle 50%. There is a significantly larger variation in the top half of entirely urban schools. This is likely due to the larger number of charter schools that are in the metro areas. Lastly, there are a significant number of outliers among the town/rural mix schools and urban/town/rural mix schools. 
+* Planning Region: The box plot shows that our most rural planning regions of the state have the highest total revenue per APU medians (Northwest, Northeast, Southwest). Interestingly, the seven county metro also has higher medians due to there being a large number of charter schools. Central schools have the lowest.
+* EDR: EDRs 1 and 2 as well as EDR 6W and 8 have some of the highest total revenue per APUs in the state. 
+
+<br>
+
+### Charter vs. public
+
+<br>
+
+```{r total rev increases relationships group}
+total.rev.increases.relationship <- master.5yr.scenarios.districts %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  group_by(`District Name`, number, type, group) %>%
+  summarize(total.rev.original = sum(revenue.0yr, na.rm = TRUE),
+            total.rev.bsrevonly = sum(revenue.bsrevonly.5yr, na.rm = TRUE),
+            total.rev.entire.formula = sum(revenue.5yr, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(district.join, by = c("District Name", "number", "type", "group")) %>%
+  mutate(total.rev.original.apu = total.rev.original / awadm22,
+         total.rev.bsrevonly.apu = total.rev.bsrevonly / awadm22,
+         total.rev.entire.formula.apu = total.rev.entire.formula / awadm22) %>%
+  gather(key = "scenario", value = "total.rev.apu", 14:16) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  mutate(scenario = str_replace(scenario, "total.rev.bsrevonly.apu", "Basic education only"),
+         scenario = str_replace(scenario, "total.rev.entire.formula.apu", "Entire formula"),
+         scenario = str_replace(scenario, "total.rev.original.apu", "Original"),
+         scenario = fct_relevel(scenario, "Original", "Basic education only", "Entire formula")) %>%
+  drop_na(total.rev.apu) %>%
+  filter(total.rev.apu != is.infinite(total.rev.apu),
+         total.rev.apu != Inf)
+
+total.rev.increases.rel.group.plot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, color = Definition, group = Definition)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nTotal revenue per APU: ", dollar(total.rev.apu), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_color_manual(values= brewer.pal(n = 6, "RdYlBu"),
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.group.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+total.rev.increases.rel.group.boxplot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, fill = Definition)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = group, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_fill_manual(values= brewer.pal(n = 4, "RdYlBu"),
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.group.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- total.rev.increases.relationship %>%
+  spread(scenario, total.rev.apu) %>%
+  mutate(Definition = as.factor(Definition))
+
+t.test(Original ~ Definition, data = correlation)
+
+t.test(`Basic education only` ~ Definition, data = correlation)
+
+t.test(`Entire formula` ~ Definition, data = correlation)
+
+```
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r total rev increases relationships ruca}
+total.rev.increases.rel.ruca.plot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, color = Dem_Desc, group = Dem_Desc)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nTotal revenue per APU: ", dollar(total.rev.apu), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_color_manual(values= color.ruca,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.ruca.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+total.rev.increases.rel.ruca.boxplot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, fill = Dem_Desc)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = Dem_Desc, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_fill_manual(values= color.ruca,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.ruca.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- total.rev.increases.relationship %>%
+  spread(scenario, total.rev.apu) %>%
+  mutate(Dem_Desc = as.factor(Dem_Desc))
+
+summary(aov(Original ~ Dem_Desc, data = correlation))
+
+summary(aov(`Basic education only` ~ Dem_Desc, data = correlation))
+
+summary(aov(`Entire formula` ~ Dem_Desc, data = correlation))
+
+
+```
+
+<br>
+
+### Planning Region
+
+<br>
+
+```{r total rev increases relationships pr}
+total.rev.increases.rel.pr.plot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, color = planning.region, group = planning.region)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nTotal revenue per APU: ", dollar(total.rev.apu), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_color_manual(values= color.pr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.pr.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+total.rev.increases.rel.pr.boxplot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, fill = planning.region)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = planning.region, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_fill_manual(values= color.pr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.pr.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- total.rev.increases.relationship %>%
+  spread(scenario, total.rev.apu) %>%
+  mutate(planning.region = as.factor(planning.region))
+
+summary(aov(Original ~ planning.region, data = correlation))
+
+summary(aov(`Basic education only` ~ planning.region, data = correlation))
+
+summary(aov(`Entire formula` ~ planning.region, data = correlation))
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r total rev increases relationships edr}
+total.rev.increases.rel.edr.plot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, color = edr, group = edr)) +
+  facet_wrap(~planning.region, ncol = 2) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nTotal revenue per APU: ", dollar(total.rev.apu), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_color_manual(values= color.edr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.edr.plot, width_svg = 10, height_svg = 20) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+total.rev.increases.rel.edr.boxplot <- ggplot(total.rev.increases.relationship, aes(scenario, total.rev.apu, fill = edr)) +
+  facet_wrap(~planning.region, ncol = 2) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = edr, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Total revenue per APU by each scenario")+
+  scale_y_continuous(labels=scales::dollar)+
+  theme_line +
+  scale_fill_manual(values= color.edr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.increases.rel.edr.boxplot, width_svg = 10, height_svg = 15) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- total.rev.increases.relationship %>%
+  spread(scenario, total.rev.apu) %>%
+  mutate(edr = as.factor(edr))
+
+summary(aov(Original ~ edr, data = correlation))
+
+summary(aov(`Basic education only` ~ edr, data = correlation))
+
+summary(aov(`Entire formula` ~ edr, data = correlation))
+
+```
+
+<br>
+
+## Quintiles
+
 Let's see if any of the districts shift in the quantiles going from the original to each of the scenarios.
 
 The maps below highlight the districts that shifted quintiles from their original revenue quintile "rank". There are very few that change. 
@@ -512,6 +778,267 @@ girafe(ggobj = plot_grid(title, pct.change.total.rev.districts.row.1, rel_height
 
 <br>
 
+## Relationships{.tabset}
+
+Let's see if there are any relationships in the amount of percent change from the original by the type of school, RUCA category, and regions. The charts below provide the pct change in total revenue for each school district for each scenario as well as the boxplots for these changes, and quick t-test and anova tables to test for significant differences.
+
+* Charter vs. Public: Both charts show that charter schools are more bunched together for each scenario and have very similar pct changes whereas the public schools have significantly more variance. In addition, there's a huge difference in the gap between public vs charter when increasing the entire formula. The median for public schools in that scenario is 18% vs. 16.8% for charter schools.
+
+* RUCA: The RUCA chart shows considerable more low outliers among town/rural mix schools and urban/town/rural mix schools. The box plots show an interesting pattern. When the basic education component is the only thing increased, the median percentages and the middle 50% of values are relatively the same across all RUCA categories. However, if we increase the entire formula, entirely urban is considerably lower than the other categories. The median for the entirely urban is 17% vs. 18% for the other schools. In addition, the ANOVA test shows a significantly larger difference when increasing the entire formula vs. the basic education component only.
+
+* Planning Region: The planning region chart shows a similar pattern to the RUCA chart. When increasing the entire formula, the seven county metro is quite a bit lower than schools in the other planning regions. The median for the seven county metro is 16.9% vs. 17.5% to 18.2% for the other regions. In fact, the ANOVA test shows that there is no statistically significant difference when increasing the basic revenue component only vs. increasing the entire formula where there is a signficant difference.
+
+* EDR: Again, there is a significant decrease in the seven county metro compared to the other EDRs. In addition, there is much lower p-value for the differences across increasing the entire formula.
+
+<br>
+
+### Charter vs. public
+
+<br>
+
+```{r pct change relationships group}
+pct.change.total.rev.relationship <- master.5yr.scenarios.districts %>%
+  select(`District Name`, number, type, categories, revenue.0yr, revenue.bsrevonly.5yr, revenue.5yr) %>%
+  rename(revenue.original = revenue.0yr) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
+            total.rev.bsrevonly = sum(revenue.bsrevonly.5yr, na.rm = TRUE),
+            total.rev.entire.formula = sum(revenue.5yr, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  mutate(total.rev.original.apu = total.rev.original / awadm22,
+         total.rev.bsrevonly.apu = total.rev.bsrevonly / awadm22,
+         total.rev.entire.formula.apu = total.rev.entire.formula / awadm22,
+         pct.change.total.rev.bsrevonly.apu = (total.rev.bsrevonly.apu - total.rev.original.apu) / total.rev.original.apu,
+         pct.change.total.rev.entire.formula.apu = (total.rev.entire.formula.apu - total.rev.original.apu) / total.rev.original.apu) %>%
+  ungroup() %>%
+  gather(key = "scenario", value = "pct.change", 17:18) %>%
+  mutate(scenario = str_replace(scenario, "pct.change.total.rev.bsrevonly.apu", "Basic education only"),
+         scenario = str_replace(scenario, "pct.change.total.rev.entire.formula.apu", "Entire formula")) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  drop_na(planning.region, edr)
+
+pct.change.total.rev.relationship.group.plot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, color = Definition, group = Definition)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nPct change in total revenue per APU: ", percent(pct.change, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_color_manual(values= brewer.pal(n = 6, "RdYlBu"),
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.group.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+pct.change.total.rev.relationship.group.boxplot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, fill = Definition)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = group, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_fill_manual(values= brewer.pal(n = 4, "RdYlBu"),
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.group.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- pct.change.total.rev.relationship %>%
+  spread(scenario, pct.change) %>%
+  mutate(Definition = as.factor(Definition))
+
+t.test(`Basic education only` ~ Definition, data = correlation)
+
+t.test(`Entire formula` ~ Definition, data = correlation)
+
+```
+
+<br>
+
+### RUCA
+
+<br>
+
+```{r pct change relationships ruca}
+pct.change.total.rev.relationship.ruca.plot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, color = Dem_Desc, group = Dem_Desc)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nPct change in total revenue per APU: ", percent(pct.change, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_color_manual(values = color.ruca,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.ruca.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+pct.change.total.rev.relationship.ruca.boxplot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, fill = Dem_Desc)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = Dem_Desc, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_fill_manual(values= color.ruca,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.ruca.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- pct.change.total.rev.relationship %>%
+  spread(scenario, pct.change) %>%
+  mutate(Dem_Desc = as.factor(Dem_Desc))
+
+summary(aov(`Basic education only` ~ Dem_Desc, data = correlation))
+
+summary(aov(`Entire formula` ~ Dem_Desc, data = correlation))
+
+```
+
+<br>
+
+### Planning Regions
+
+<br>
+
+```{r pct change relationships pr}
+pct.change.total.rev.relationship.pr.plot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, color = planning.region, group = planning.region)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nPct change in total revenue per APU: ", percent(pct.change, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_color_manual(values = color.pr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.pr.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+pct.change.total.rev.relationship.pr.boxplot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, fill = planning.region)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = planning.region, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_fill_manual(values= color.pr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.pr.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- pct.change.total.rev.relationship %>%
+  spread(scenario, pct.change) %>%
+  mutate(planning.region = as.factor(planning.region))
+
+summary(aov(`Basic education only` ~ planning.region, data = correlation))
+
+summary(aov(`Entire formula` ~ planning.region, data = correlation))
+
+```
+
+<br>
+
+### EDR
+
+<br>
+
+```{r pct change relationships edr}
+pct.change.total.rev.relationship.edr.plot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, color = edr, group = edr)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario,  "\nPct change in total revenue per APU: ", percent(pct.change, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_color_manual(values = color.edr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.edr.plot, width_svg = 15, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+tags$br()
+
+pct.change.total.rev.relationship.edr.boxplot <- ggplot(pct.change.total.rev.relationship, aes(scenario, pct.change, fill = edr)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = edr, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Percent change in total revenue per APU")+
+  scale_y_continuous(labels=scales::percent)+
+  theme_line +
+  scale_fill_manual(values= color.edr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.relationship.edr.boxplot, width_svg = 15, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+correlation <- pct.change.total.rev.relationship %>%
+  spread(scenario, pct.change) %>%
+  mutate(edr = as.factor(edr))
+
+summary(aov(`Basic education only` ~ edr, data = correlation))
+
+summary(aov(`Entire formula` ~ edr, data = correlation))
+
+```
+
+<br>
+
+## Quintiles
+
+
+
+<br>
+
 To get a clear picture, lets see what districts shift up and down in their quintile rank when comparing the scenario that increases the entire formula vs. only increasing the basic education component.
 
 The chart below shows that there is quite a bit of movement in terms of the quintile rank in pct change between the two scenarios. When comparing quintile ranks from the basic education only scenario with increasing the entire formula, districts in the lakes regions and suburbs drop between 2 and 4 ranks in their quintile while property poor schools increase a similar amount of ranks. 
@@ -545,3 +1072,131 @@ girafe(ggobj = quintile.rank.pct.change.total.rev.districts.map, height_svg = 10
   girafe_options(opts_sizing(rescale = FALSE))
 
 ```
+
+<br>
+
+# What components drive change?{.tabset}
+
+So now we need to figure out which components drive the change in total revenue. The chart below plots each school along with the percentage each component composes of the difference between increasing the basic education component only vs. increasing the entire formula. The chart shows that the components that are the primary drivers are;
+
+* Local optional aid (locaid)
+* Operating capital aid (cexaid)
+* Small schools revenue (smlrev)
+
+The remaining categories do also have influence but across less schools. 
+
+<br>
+
+```{r components districts}
+comp.pct.diff <- master.5yr.scenarios.districts %>%
+  select(`District Name`, number, type, categories, revenue.0yr, revenue.5yr, revenue.bsrevonly.5yr) %>%
+  rename(revenue.original = revenue.0yr) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  mutate(cat.rev.original.apu = revenue.original / awadm22,
+         cat.rev.bsrevonly.apu = revenue.bsrevonly.5yr / awadm22,
+         cat.rev.entire.formula.apu = revenue.5yr / awadm22) %>%
+  select(`District Name`, number, type, group, categories, cat.rev.original.apu, cat.rev.bsrevonly.apu, cat.rev.entire.formula.apu) %>%
+  mutate(diff.cat.bsrevonly.ef.apu = cat.rev.entire.formula.apu - cat.rev.bsrevonly.apu) %>%
+  left_join(total.rev.districts[,c(1,2,3,7,5,6)], by = c("District Name", "number", "type")) %>%
+  rename(total.rev.apu.original = Original,
+         total.rev.apu.bsrevonly = `Basic education only`,
+         total.rev.apu.entire.formula = `Entire formula`)  %>%
+  mutate(diff.total.rev.apu = total.rev.apu.entire.formula - total.rev.apu.bsrevonly,
+         cat.pct.diff.apu = diff.cat.bsrevonly.ef.apu / diff.total.rev.apu) %>%
+  group_by(categories) %>%
+  mutate(axis.order = sum(cat.pct.diff.apu, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(district.join, by = c("District Name", "number", "type", "group"))
+
+comp.pct.diff.plot <- ggplot(comp.pct.diff, aes(reorder(categories, axis.order), cat.pct.diff.apu)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nComponent: ", categories, "\nRevenue per APU from component - original: ", dollar(cat.rev.original.apu), "\nRevenue per APU from component - basic revenue only: ", dollar(cat.rev.bsrevonly.apu), "\nRevenue per APU from component - increase entire formula: ", dollar(cat.rev.entire.formula.apu), "\nComponents impact on difference between two scenarios: ", percent(cat.pct.diff.apu, accuracy = .1), sep = ""))) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent) +
+  theme_line+
+  coord_flip() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+Next, let's see if there are any relationships between the type of school, it's RUCA category, and it's region.
+
+<br>
+
+## Charter vs. Public
+
+<br>
+
+```{r components districts group}
+
+total.rev.group <- total.rev.districts %>%
+  group_by(group) %>%
+  summarize(total.rev.original = sum(Original),
+            total.rev.bsrevonly = sum(`Basic education only`),
+            total.rev.entire.formula = sum(`Entire formula`)) %>%
+  ungroup()
+
+names(total.rev.group)
+
+comp.pct.diff.group <- master.5yr.scenarios.districts %>%
+  select(`District Name`, number, type, categories, revenue.0yr, revenue.5yr, revenue.bsrevonly.5yr) %>%
+  rename(revenue.original = revenue.0yr) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  left_join(total.rev.districts[,c(1,2,3,7,5,6)], by = c("District Name", "number", "type")) %>%
+  rename(total.rev.original = Original,
+         total.rev.bsrevonly = `Basic education only`,
+         total.rev.entire.formula = `Entire formula`) %>%
+  group_by(group, categories) %>%
+  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
+            revenue.original = sum(revenue.original, na.rm = TRUE),
+            revenue.bsrevonly.5yr = sum(revenue.bsrevonly.5yr, na.rm = TRUE),
+            revenue.5yr = sum(revenue.5yr, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(cat.rev.original.apu = revenue.original / awadm22,
+         cat.rev.bsrevonly.apu = revenue.bsrevonly.5yr / awadm22,
+         cat.rev.entire.formula.apu = revenue.5yr / awadm22) %>%
+  select(group, categories, cat.rev.original.apu, cat.rev.bsrevonly.apu, cat.rev.entire.formula.apu) %>%
+  mutate(diff.cat.bsrevonly.ef.apu = cat.rev.entire.formula.apu - cat.rev.bsrevonly.apu) 
+  
+comp.pct.diff.plot <- ggplot(comp.pct.diff, aes(reorder(categories, axis.order), cat.pct.diff.apu)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nComponent: ", categories, "\nRevenue per APU from component - original: ", dollar(cat.rev.original.apu), "\nRevenue per APU from component - basic revenue only: ", dollar(cat.rev.bsrevonly.apu), "\nRevenue per APU from component - increase entire formula: ", dollar(cat.rev.entire.formula.apu), "\nComponents impact on difference between two scenarios: ", percent(cat.pct.diff.apu, accuracy = .1), sep = ""))) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent) +
+  theme_line+
+  coord_flip() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+## RUCA
+
+<br>
+
+<br>
+
+## Planning Regions
+
+<br>
+
+<br>
+
+## EDR
+
+<br>
+
+<br>

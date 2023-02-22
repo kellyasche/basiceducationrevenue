@@ -130,6 +130,7 @@ mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp",
 
 ```{r shapefiles}
 school_districts <- read_sf("Data/Shapefiles/School Shapefiles/School_district_boundaries.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
   rename(type = UNI_TYP,
          number = UNI_MAJ)
 

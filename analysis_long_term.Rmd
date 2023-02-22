@@ -132,6 +132,7 @@ mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp",
 
 ```{r shapefiles}
 school_districts <- read_sf("Data/Shapefiles/New school shapefiles/School_district_boundaries.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
   rename(type = SDTYPE,
          number = SDNUMBER) %>%
   mutate(number = as.numeric(number),
@@ -700,6 +701,93 @@ girafe(ggobj = plot_grid(title, plot.row.1, ncol = 1, rel_heights = c(0.1, .9)),
 
 <br>
 
+## Rank{.tabset}
+
+Next, let's just see if the ranks change much across the state. The maps below provide the public school district ranks for each scenario. The darker the shade, the higher the rank meaning the higher the total revenue per APU. The maps show that the highest ranks are in northern Minnesota and southwest with significantly less around central Minnesota and the suburbs. I was hoping to see a pattern or change in ranks across the scenarios but that doesn't seem to be the case.
+
+<br>
+
+```{r district rank}
+rank.districts <- master.5yr.scenarios.districts %>%
+  select(`District Name`, number, type, categories, revenue.0yr, revenue.bsrevonly.5yr, revenue.5yr) %>%
+  rename(revenue.original = revenue.0yr) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE),
+            total.rev.bsrevonly = sum(revenue.bsrevonly.5yr, na.rm = TRUE),
+            total.rev.entire.formula = sum(revenue.5yr, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  mutate(total.rev.original.apu = total.rev.original / awadm22,
+         total.rev.bsrevonly.apu = total.rev.bsrevonly / awadm22,
+         total.rev.entire.formula.apu = total.rev.entire.formula / awadm22) %>%
+  ungroup() %>%
+  filter(total.rev.original.apu != "Inf") %>%
+  filter(total.rev.bsrevonly.apu != "Inf") %>%
+  filter(total.rev.entire.formula.apu != "Inf") %>%
+  arrange(desc(total.rev.original.apu)) %>%
+  mutate(rank.original = seq(n())) %>%
+  arrange(desc(total.rev.bsrevonly.apu)) %>%
+  mutate(rank.bsrevonly = seq(n())) %>%
+  arrange(desc(total.rev.entire.formula.apu)) %>%
+  mutate(rank.entire.formula = seq(n())) %>%
+  gather(key = "scenario", value = "rank", 17:19) %>%
+  mutate(scenario = str_replace(scenario, "rank.bsrevonly", "Basic education only"),
+         scenario = str_replace(scenario, "rank.entire.formula", "Entire formula"),
+         scenario = str_replace(scenario, "rank.original", "Original"),
+         scenario = fct_relevel(scenario, "Original", "Basic education only", "Entire formula")) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type"))
+
+names(rank.districts)
+
+rank.districts.map <- ggplot(rank.districts) +
+  facet_wrap(~scenario, ncol = 2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = rank, data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario, "\nRank among schools: ", rank, sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = -1, labels = scales::comma) +
+  labs(title = "Rank of total revenue per APU for each scenario") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = rank.districts.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+Perhaps looking at the maps through the lens of change. The maps below show the change in rank among all schools when going from the original total revenue per APU to the new values under each scenario. Shades of blue means a districts rank improved while yellow and orange means their ranks worsened. 
+
+When comparing the two maps, it shows that districts in southwest Minnesota improve in rank when the entire formula increases. When only the basic education revenue is increased, the central lakes region improves significantly. 
+
+However, this is all pretty subtle. 
+
+<br>
+
+```{r rank change districts}
+rank.change.districts <- rank.districts %>%
+  spread(scenario, rank) %>%
+  mutate(bsrevonly.rank.change = `Basic education only` - `Original`,
+         entire.formula.rank.change = `Entire formula` - `Original`) %>%
+  gather(key = "scenario", value = "rank.change", 21:22) %>%
+  mutate(scenario = str_replace(scenario, "bsrevonly.rank.change", "Basic education only"),
+         scenario = str_replace(scenario, "entire.formula.rank.change", "Entire formula"))
+
+rank.change.districts.map <- ggplot(rank.change.districts) +
+  facet_wrap(~scenario, ncol = 2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = rank.change, data_id = `District Name`, tooltip = paste(`District Name`, "\nScenario: ", scenario, "\nRank change from original: ", rank.change, sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "RdYlBu", direction = -1, labels = scales::comma) +
+  labs(title = "Change in rank of total revenue per APU for each scenario") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = rank.change.districts.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
 # Analysis - pct change in revenue per APU
 
 Even though there doesn't seem to be much change or shift when comparing revenue per APU across all districts, the percentage change might highlight some patterns.
@@ -1126,7 +1214,26 @@ girafe(ggobj = comp.pct.diff.plot, width_svg = 10, height_svg = 7) %>%
 
 <br>
 
-Next, let's see if there are any relationships between the type of school, it's RUCA category, and it's region.
+
+Next, let's see if there are any relationships between the type of school, it's RUCA category, and it's region. Since there are only a few components that make the biggest difference, we are going to include the following components;
+
+* Local optional aid: locaid
+* Operating capital aid: cexaid
+* Small schools revenue: smlrev
+* Equity aid: eqaid
+* English learners: totlep
+* Sparsity revenue: totspar
+* Extended time revenue: exdayr
+
+The charts below provide the percent of each component of the formula comprises the difference between the total increase from increasing only the basic education component to increasing the entire formula for each district. Box plots are also included to see the difference in median values and concentrations.
+
+* Charter vs. public: the important piece here is that charter schools are not eligible to receive local optional aid, extended time revenue, or sparsity revenue. The biggest difference is the local optional aid received by public school districts. This category had a median value of 55% - meaning 55% of the difference between the two scenarios was made up by local optional aid. Charter schools typically had a higher percentage of operating capital aid, small schools revenue as well as English learners. 
+
+* RUCA: Schools outside of entirely urban counties had significantly higher percentages in local optional aid, while more urban districts had higher percentages in operating capital aid, small schools revenue (likely charter schools), and English learners.
+
+* Planning Region: Interestingly, local optional aid barely shows up in the seven county metro. And, Northeast has a lot of districts at or near 0 as well. Other regions have the highest percentages of all components in the category. Operating capital is highest in the seven county metro. Small schools revenue is large middle 50%. 
+
+
 
 <br>
 
@@ -1135,49 +1242,83 @@ Next, let's see if there are any relationships between the type of school, it's 
 <br>
 
 ```{r components districts group}
+components.included <- c("locaid", "cexaid", "smlrev", "eqaid", "totlep", "totspar", "exdayr")
 
-total.rev.group <- total.rev.districts %>%
-  group_by(group) %>%
-  summarize(total.rev.original = sum(Original),
-            total.rev.bsrevonly = sum(`Basic education only`),
-            total.rev.entire.formula = sum(`Entire formula`)) %>%
-  ungroup()
-
-names(total.rev.group)
-
-comp.pct.diff.group <- master.5yr.scenarios.districts %>%
-  select(`District Name`, number, type, categories, revenue.0yr, revenue.5yr, revenue.bsrevonly.5yr) %>%
-  rename(revenue.original = revenue.0yr) %>%
+total.rev.group <- master.5yr.scenarios.districts %>%
   left_join(district.join, by = c("District Name", "number", "type")) %>%
-  left_join(total.rev.districts[,c(1,2,3,7,5,6)], by = c("District Name", "number", "type")) %>%
-  rename(total.rev.original = Original,
-         total.rev.bsrevonly = `Basic education only`,
-         total.rev.entire.formula = `Entire formula`) %>%
-  group_by(group, categories) %>%
-  summarize(awadm22 = sum(awadm22, na.rm = TRUE),
-            revenue.original = sum(revenue.original, na.rm = TRUE),
-            revenue.bsrevonly.5yr = sum(revenue.bsrevonly.5yr, na.rm = TRUE),
-            revenue.5yr = sum(revenue.5yr, na.rm = TRUE)) %>%
+  group_by(`District Name`, type, number) %>%
+  summarize(total.rev.original = sum(revenue.0yr, na.rm = TRUE),
+            total.rev.bsrevonly = sum(revenue.bsrevonly.5yr, na.rm = TRUE),
+            total.rev.entire.formula = sum(revenue.5yr, na.rm = TRUE)) %>%
+  ungroup() 
+
+comp.pct.diff.districts <- master.5yr.scenarios.districts %>%
+  select(`District Name`, number, type, categories, revenue.0yr, revenue.5yr, revenue.bsrevonly.5yr) %>%
+  rename(cat.revenue.original = revenue.0yr,
+         cat.revenue.bsrevonly = revenue.bsrevonly.5yr,
+         cat.revenue.entire.formula = revenue.5yr) %>%
+  left_join(total.rev.group, by = c("District Name", "number", "type")) %>%
+  mutate(diff.total.rev.scenarios = total.rev.entire.formula - total.rev.bsrevonly,
+         diff.cat = cat.revenue.entire.formula - cat.revenue.bsrevonly,
+         pct.diff.cat = diff.cat / diff.total.rev.scenarios) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  mutate(cat.revenue.original.apu = cat.revenue.original / awadm22,
+         cat.revenue.bsrevonly.apu = cat.revenue.bsrevonly / awadm22,
+         cat.revenue.entire.formula.apu = cat.revenue.entire.formula / awadm22,
+         total.rev.original.apu = total.rev.original / awadm22,
+         total.rev.bsrevonly.apu = total.rev.bsrevonly / awadm22,
+         total.rev.entire.formula.apu = total.rev.entire.formula /awadm22,
+         diff.total.rev.scenarios.apu = diff.total.rev.scenarios / awadm22,
+         diff.cat.apu = diff.cat / awadm22,
+         pct.diff.cat.apu = diff.cat.apu / diff.total.rev.scenarios.apu) %>%
+  select(`District Name`, number, type, categories, cat.revenue.original.apu, cat.revenue.bsrevonly.apu, cat.revenue.entire.formula.apu, total.rev.original.apu, total.rev.bsrevonly.apu, total.rev.entire.formula.apu, diff.cat.apu, diff.total.rev.scenarios.apu, pct.diff.cat.apu) %>%
+  group_by(categories) %>%
+  mutate(axis.order = sum(pct.diff.cat.apu, na.rm = TRUE)) %>%
   ungroup() %>%
-  mutate(cat.rev.original.apu = revenue.original / awadm22,
-         cat.rev.bsrevonly.apu = revenue.bsrevonly.5yr / awadm22,
-         cat.rev.entire.formula.apu = revenue.5yr / awadm22) %>%
-  select(group, categories, cat.rev.original.apu, cat.rev.bsrevonly.apu, cat.rev.entire.formula.apu) %>%
-  mutate(diff.cat.bsrevonly.ef.apu = cat.rev.entire.formula.apu - cat.rev.bsrevonly.apu) 
-  
-comp.pct.diff.plot <- ggplot(comp.pct.diff, aes(reorder(categories, axis.order), cat.pct.diff.apu)) +
-  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nComponent: ", categories, "\nRevenue per APU from component - original: ", dollar(cat.rev.original.apu), "\nRevenue per APU from component - basic revenue only: ", dollar(cat.rev.bsrevonly.apu), "\nRevenue per APU from component - increase entire formula: ", dollar(cat.rev.entire.formula.apu), "\nComponents impact on difference between two scenarios: ", percent(cat.pct.diff.apu, accuracy = .1), sep = ""))) +
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type"))
+
+comp.pct.diff.group.plot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included), aes(reorder(categories, axis.order), pct.diff.cat.apu, group = Definition, color = Definition)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nComponent: ", categories, "\nRevenue per APU from component - original: ", dollar(cat.revenue.original.apu), "\nRevenue per APU from component - basic revenue only: ", dollar(cat.revenue.bsrevonly.apu), "\nRevenue per APU from component - increase entire formula: ", dollar(cat.revenue.entire.formula.apu), "\nComponents impact on difference between two scenarios: ", percent(pct.diff.cat.apu, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
   labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
   scale_y_continuous(labels=scales::percent) +
+  scale_color_manual(values = brewer.pal(n = 6, "RdYlBu")) +
   theme_line+
   coord_flip() +
   theme(legend.position = "bottom",
         text = element_text(size = 18))
 
-girafe(ggobj = comp.pct.diff.plot, width_svg = 10, height_svg = 7) %>%
+girafe(ggobj = comp.pct.diff.group.plot, width_svg = 10, height_svg = 7) %>%
   girafe_options(opts_selection(type = "none"),
                  opts_toolbar(saveaspng = FALSE),
                  opts_sizing(rescale = FALSE))
+
+tags$br()
+
+comp.pct.diff.group.boxplot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included), aes(reorder(categories, -axis.order), pct.diff.cat.apu, fill = Definition)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = group, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent)+
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme_line +
+  scale_fill_manual(values= brewer.pal(n = 4, "RdYlBu"),
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.group.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+
 
 ```
 
@@ -1187,11 +1328,99 @@ girafe(ggobj = comp.pct.diff.plot, width_svg = 10, height_svg = 7) %>%
 
 <br>
 
+```{r components districts ruca}
+comp.pct.diff.ruca.plot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included), aes(reorder(categories, axis.order), pct.diff.cat.apu, group = Dem_Desc, color = Dem_Desc)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nComponent: ", categories, "\nRevenue per APU from component - original: ", dollar(cat.revenue.original.apu), "\nRevenue per APU from component - basic revenue only: ", dollar(cat.revenue.bsrevonly.apu), "\nRevenue per APU from component - increase entire formula: ", dollar(cat.revenue.entire.formula.apu), "\nComponents impact on difference between two scenarios: ", percent(pct.diff.cat.apu, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent) +
+  scale_color_manual(values = color.ruca) +
+  theme_line+
+  coord_flip() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.ruca.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+tags$br()
+
+comp.pct.diff.ruca.boxplot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included), aes(reorder(categories, -axis.order), pct.diff.cat.apu, fill = Dem_Desc)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = Dem_Desc, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent)+
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme_line +
+  scale_fill_manual(values= color.ruca,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.ruca.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+
+
+```
+
 <br>
 
 ## Planning Regions
 
 <br>
+
+```{r components districts pr}
+comp.pct.diff.pr.plot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included), aes(reorder(categories, axis.order), pct.diff.cat.apu, group = planning.region, color = planning.region)) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nComponent: ", categories, "\nRevenue per APU from component - original: ", dollar(cat.revenue.original.apu), "\nRevenue per APU from component - basic revenue only: ", dollar(cat.revenue.bsrevonly.apu), "\nRevenue per APU from component - increase entire formula: ", dollar(cat.revenue.entire.formula.apu), "\nComponents impact on difference between two scenarios: ", percent(pct.diff.cat.apu, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent) +
+  scale_color_manual(values = color.pr) +
+  theme_line+
+  coord_flip() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.pr.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+tags$br()
+
+comp.pct.diff.pr.boxplot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included), aes(reorder(categories, -axis.order), pct.diff.cat.apu, fill = planning.region)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = planning.region, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent)+
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme_line +
+  scale_fill_manual(values= color.pr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.pr.boxplot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+
+
+```
 
 <br>
 
@@ -1199,4 +1428,81 @@ girafe(ggobj = comp.pct.diff.plot, width_svg = 10, height_svg = 7) %>%
 
 <br>
 
+```{r components districts edr}
+comp.pct.diff.edr.plot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included & !is.na(pct.diff.cat.apu)), aes(reorder(categories, axis.order), pct.diff.cat.apu, group = edr, color = edr)) +
+  facet_wrap(~planning.region, ncol = 2) +
+  geom_point_interactive(size = 5, aes(data_id = `District Name`, tooltip = paste(`District Name`, "\nComponent: ", categories, "\nRevenue per APU from component - original: ", dollar(cat.revenue.original.apu), "\nRevenue per APU from component - basic revenue only: ", dollar(cat.revenue.bsrevonly.apu), "\nRevenue per APU from component - increase entire formula: ", dollar(cat.revenue.entire.formula.apu), "\nComponents impact on difference between two scenarios: ", percent(pct.diff.cat.apu, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent) +
+  scale_color_manual(values = color.edr) +
+  theme_line+
+  coord_flip() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.edr.plot, width_svg = 10, height_svg = 15) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+tags$br()
+
+comp.pct.diff.edr.boxplot <- ggplot(filter(comp.pct.diff.districts, categories %in% components.included), aes(reorder(categories, -axis.order), pct.diff.cat.apu, fill = edr)) +
+  facet_wrap(~planning.region, ncol = 2) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge", aes(data_id = edr, tooltip = after_stat({paste(
+    "Group: ", .data$fill,
+          "\nQ1: ", prettyNum(.data$ymin),
+          "\nQ3: ", prettyNum(.data$ymax),
+          "\nmedian: ", prettyNum(.data$middle)
+  )}))) +
+  labs(x="", y = "", color="", title = "Components percentage difference between two scenarios")+
+  scale_y_continuous(labels=scales::percent)+
+  scale_x_discrete(guide = guide_axis(angle = 25)) +
+  theme_line +
+  scale_fill_manual(values= color.edr,
+                     guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.edr.boxplot, width_svg = 10, height_svg = 15) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+
+
+```
+
 <br>
+
+Let's see what this looks like on a map (which be only public schools). The maps below show the top 4 categories that drive the difference between the two scenarios. It clearly shows that nearly all of greater Minnesota benefits from the local optional aid. This component drives between 40 and 75% of the difference between the two scenarios. For the seven county metro, operating capital becomes the highest. In some districts in northern Minnesota, small schools revenue and sparsity revenue are the largest drivers. 
+
+The second largest component for much of greater Minnesota districts is operating capital aid, small schools revenue, and English learners.
+
+<br>
+
+```{r components pct diff district map}
+comp.pct.diff.districts.rank <- comp.pct.diff.districts %>%
+  group_by(`District Name`, number, type) %>%
+  arrange(desc(pct.diff.cat.apu)) %>%
+  mutate(rank = seq(n())) %>%
+  ungroup() %>%
+  filter(rank < 5) %>%
+  mutate(rank = as.factor(rank),
+         categories = ifelse(categories == "bsrev", "None", categories))
+
+comp.pct.diff.districts.rank.map <- ggplot(comp.pct.diff.districts.rank) +
+  facet_wrap(~rank, ncol = 2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = categories, data_id = `District Name`, tooltip = paste(`District Name`, "\nCategory: ", categories, "\nRank as pct of difference: ", rank, "\nPercent this component comprises of difference between two scenarios: ", percent(pct.diff.cat.apu, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 11, "RdYlBu"))+
+  labs(title = "Largest driver of difference between two scenarios") +
+  theme(legend.box.margin = margin(50, 0, 0, 0),
+        text = element_text(size = 18))
+
+girafe(ggobj = comp.pct.diff.districts.rank.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+
+```

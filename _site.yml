@@ -46,6 +46,8 @@ navbar:
       href: analysis_rev_apu.html
     - text: "Analysis - long term impacts"
       href: analysis_long_term.html
+    - text: "Report"
+      href: report.html
 output:
   html_document:
     css: "styles.css"

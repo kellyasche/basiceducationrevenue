@@ -40,3 +40,5 @@ vignettes/*.pdf
 
 # Ignore data files
 Data/
+analysis_another.html
+analysis_another.Rmd

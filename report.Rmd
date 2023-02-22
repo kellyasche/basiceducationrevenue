@@ -1,0 +1,431 @@
+---
+title: "Report"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 4
+runtime: shiny
+resource_files:
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.cpg
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.dbf
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.prj
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbn
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.sbx
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shp.xml
+- Data/Shapefiles/County shapefiles/MNCounties_MNDOT.shx
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(scales)
+library(shiny)
+library(shinycssloaders)
+library(ggiraph)
+library(kableExtra)
+library(rmapshaper)
+library(cowplot)
+library(DT)
+library(htmlwidgets)
+library(RColorBrewer)
+library(readxl)
+library(janitor)
+library(lubridate)
+library(systemfonts)
+reset_font_cache()
+library(ggtext)
+library(gmodels)
+library(ggpattern)
+library(EnvStats)
+
+```
+
+```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
+theme_bar <- theme_bw() +
+  theme(panel.grid.major = element_line(color = "grey70", size = 0.1),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.key.size = unit(1, "lines"),
+        legend.margin = margin(0,0,0,0),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+theme_line <- theme_bw() +
+  theme(legend.background = element_rect(fill = "transparent", color = "transparent"),
+        legend.key = element_rect(fill = "transparent"),
+        legend.text = element_text(margin = margin(l = 2)),
+        panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(color = "grey70", size = 0.1),
+        axis.ticks = element_blank(),
+        axis.text = element_text(face = "bold"),
+        panel.border = element_blank(),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+
+theme_sf <- theme_bw() +
+  theme(axis.text.x=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks=element_blank(),
+        panel.background = element_blank(),
+        panel.grid.major = element_line(color = "white"),
+        panel.border = element_blank(),
+        legend.title = element_blank(),
+        legend.text = element_text(margin = margin(l = 2)),
+        legend.margin = margin(0,0,0,0),
+        legend.key.size = unit(1, "lines"),
+        text = element_text(family = "Arial") ,
+        plot.title.position = "plot",
+        plot.title = element_text(face = "bold"))
+
+regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+    select(5,6) %>%
+    unique() %>%
+    mutate(edr = str_replace(edr, "  ", " "),
+           planning.region = str_replace(planning.region, " Minnesota", ""),
+           planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+           edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+
+counties.regions <- read_csv("Data/Join docs/county_regions.csv") %>%
+  rename(mif = `MIF Region`) %>%
+  mutate(countyfp = formatC(countyfp, width = 3, flag = "0"),
+         Name = str_to_title(Name),
+         Name = str_replace(Name, "Q", "q"),
+         Name = str_replace(Name, "Of The", "of the"),
+         Name = str_replace(Name, "Mcleod", "McLeod"),
+         Dem_Desc = ifelse(Name == "Minnesota", "Minnesota", Dem_Desc) ,
+         edr = str_replace(edr, "  ", " "),
+         planning.region = str_replace(planning.region, " Minnesota", ""),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         mif = ifelse(is.na(mif), "TC", mif),
+         mif = as.factor(mif),
+         mif = fct_relevel(mif, "NW", "NE", "WC", "EC", "SW", "SE", "TC"))
+
+
+color.ruca <- c("Entirely rural" = "#009933", "Town/rural mix" = "#99CC33", "Urban/town/rural mix" = "#CC9966", "Entirely urban" = "#754C29", "Minnesota" = "black")
+
+color.pr <- c("Northwest" = 	"#4575b4", "Northeast" = "grey", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black")
+
+color.edr <- c("EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365", "Minnesota" = "black")
+
+color.pr.edr <- c ("Northwest" = "#4575b4","Northeast" = "#e0f3f8", "Central" = "#fee090", "Seven County Mpls-St Paul" = "#d73027", "Southwest" = "#91bfdb", "Southeast" = "#fc8d59", "Minnesota" = "black", "EDR 1 - Northwest" = "#b3cde3", "EDR 2 - Headwaters" = "#8c96c6", "EDR 3 - Arrowhead" = "#fe9929", "EDR 4 - West Central" = "#8856a7", "EDR 5 - North Central" = "#810f7c", "EDR 6E- Southwest Central" = "#e5f5f9", "EDR 6W- Upper Minnesota Valley" = "#bdc9e1", "EDR 7E- East Central" = "#99d8c9", "EDR 7W- Central" = "#2ca25f", "EDR 8 - Southwest" = "#74a9cf", "EDR 9 - South Central" = "#0570b0", "EDR 10 - Southeast" = "#d7301f", "EDR 11 - 7 County Twin Cities" = "#d8b365")
+
+mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01, keep_shapes = TRUE) %>%
+  rename(countyfp = FIPS_CODE)
+
+```
+
+```{r shapefiles}
+school_districts <- read_sf("Data/Shapefiles/New school shapefiles/School_district_boundaries.shp", quiet = TRUE) %>%
+  rename(type = SDTYPE,
+         number = SDNUMBER) %>%
+  mutate(number = as.numeric(number),
+         type = as.numeric(type))
+
+
+```
+
+
+```{r master orignal}
+original <- read_csv("Data/Formula/Master.csv") %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"),
+         eqgroup.label = ifelse(is.na(eqgroup.label), "", eqgroup.label)) %>%
+  filter(group %in% c(1,4))
+
+group.codes <- read_xlsx("Data/Formula/group codes.xlsx")
+
+var.codes <- read_xlsx("Data/Formula/primary variable codes.xlsx")
+
+categories <- c("bsrev", "exdayr", "gtrev", "smlrev", "decrev", "locaid", "afdc22", "totlep", "totspar", "cexaid", "tsparrev", "eqaid", "hhaid", "penrev")
+
+link.comp <- c("bsrev", "decrev", "afdc22", "totspar", "tsparrev")
+
+master.original <- original %>%
+  select(`District Name`, number, type, categories) %>%
+  gather(key = "categories", value = "revenue.original", 4:17) 
+
+```
+
+
+```{r district join}
+district.join <- original %>%
+  select(`District Name`, number, type, group, `County Name`, countyfp, Dem_Desc, planning.region, edr, awadm22) %>%
+  mutate(Dem_Desc = fct_relevel(Dem_Desc, "Entirely rural", "Town/rural mix", "Urban/town/rural mix", "Entirely urban"),
+         planning.region = fct_relevel(planning.region, "Northwest", "Northeast", "Central", "Seven County Mpls-St Paul", "Southwest", "Southeast"),
+         edr = fct_relevel(edr, "EDR 1 - Northwest", "EDR 2 - Headwaters", "EDR 3 - Arrowhead", "EDR 4 - West Central", "EDR 5 - North Central", "EDR 6E- Southwest Central", "EDR 6W- Upper Minnesota Valley", "EDR 7E- East Central", "EDR 7W- Central", "EDR 8 - Southwest", "EDR 9 - South Central", "EDR 10 - Southeast", "EDR 11 - 7 County Twin Cities", "Minnesota"))
+```
+
+```{r master 5yr scenarios}
+master.5yr.scenarios.districts <- read_csv("Data/Formula/Master-5yr-scenarios-district.csv")
+
+scenarios.5yr.districts <-  master.5yr.scenarios.districts %>%
+  rename(revenue.original = revenue.0yr) %>%
+  select(`District Name`, number, type, categories, revenue.original, revenue.bsrevonly.5yr, revenue.5yr) %>%
+  gather(key = "scenario", value = "revenue", 5:7) %>%
+  left_join(district.join[,c(1,2,3,4,10)], by = c("District Name", "number", "type")) %>%
+  mutate(revenue.apu = revenue / awadm22) %>%
+  select(-revenue) %>%
+  spread(scenario, revenue.apu) %>%
+  select(`District Name`, number, type, group, categories, awadm22, revenue.original, revenue.bsrevonly.5yr, revenue.5yr) %>%
+  rename(revenue.original.apu = revenue.original,
+         revenue.bsrevonly.apu = revenue.bsrevonly.5yr,
+         revenue.entire.formula.apu = revenue.5yr) %>%
+  left_join(district.join, by = c("District Name", "number", "type", "group", "awadm22")) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(-group)
+```
+
+
+
+
+
+```{r district prop}
+prop.group <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(group) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n)) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  select(Definition, total.dataset.n, total.dataset.pct.n)
+
+prop.ruca <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(Dem_Desc) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.prop = total.dataset.n / sum(total.dataset.n)) 
+
+prop.pr <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(planning.region) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n))
+
+prop.edr <- master.original %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  group_by(edr) %>%
+  summarize(total.dataset.n = n()) %>%
+  ungroup() %>%
+  mutate(total.dataset.pct.n = total.dataset.n / sum(total.dataset.n))
+
+```
+
+```{r total revenues all schools}
+total.rev.all.schools <- master.5yr.scenarios.districts %>%
+  select(`District Name`, number, type, revenue.0yr, revenue.bsrevonly.5yr, revenue.5yr) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original = sum(revenue.0yr, na.rm = TRUE),
+            total.rev.bsrevonly = sum(revenue.bsrevonly.5yr, na.rm = TRUE),
+            total.rev.entire.formula = sum(revenue.5yr, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(district.join[,c(1,2,3,4,10)], by = c("District Name", "number", "type")) %>%
+  mutate(total.rev.original.apu = total.rev.original / awadm22,
+         total.rev.bsrevonly.apu = total.rev.bsrevonly / awadm22,
+         total.rev.entire.formula.apu = total.rev.entire.formula /awadm22) %>%
+  select(-total.rev.original, -total.rev.bsrevonly, -total.rev.entire.formula, -awadm22, -group)
+
+```
+
+
+<br>
+
+# The Governor's proposal{.tabset}
+
+The governor's proposal is to increase education funding by increasing the basic education revenue allowance by 4% the first year and by inflation in subsequent years. Over the course of 5 years this would look like the following;
+
+* FY23: $6,863
+* FY24: $7,138
+* FY25: $7,572
+* FY26: $7,799
+* FY27: $8,033
+
+Increasing the basic education revenue allowance doesn't mean it's the only component of the general education revenue formula that increases. Increasing this component also means increases will occur in the components that are linked to this one;
+
+* basic skills - compensatory,
+* declining enrollment,
+* sparsity, and
+* transportation sparsity.
+
+As an example, let's look at the hypothetical changes to the revenue streams from the General Education Revenue Formula for Belgrade-Brooten-Elrosa Public School District. Table 1 shows that by increasing the basic education revenue component by 4% the first year with 3% inflationary increases in the four subsequent years increases the revenue streams for not only that specific component, but transportation sparsity, compensatory, sparsity, and declining enrollment. This change impacts some of the largest revenue streams in the General Education Revenue formula such as transportation sparsity, compensatory, and sparsity. 
+
+<br>
+
+```{r pine point example}
+bbe <- scenarios.5yr.districts %>%
+  filter(`District Name` == "Belgrade-Brooten-Elrosa Public School District") %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(Category, revenue.original.apu, revenue.bsrevonly.apu) %>%
+  arrange(desc(revenue.original.apu)) %>%
+  mutate(`Pct Increase` = (revenue.bsrevonly.apu - revenue.original.apu) / revenue.original.apu,
+         revenue.original.apu = dollar(revenue.original.apu),
+         revenue.bsrevonly.apu = dollar(revenue.bsrevonly.apu),
+         `Pct Increase` = percent(`Pct Increase`, accuracy = .1)) %>%
+  rename(`FY22 original funding per APU` = revenue.original.apu,
+         `FY27 proposed funding per APU` = revenue.bsrevonly.apu)
+
+kable(format = "html", bbe, escape = F, caption = "Table 1: Belgrade-Brooten-Elrosa Public School District - changes in general education revenue components", align = "c") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
+  row_spec(1:2, background = "yellow") %>%
+  row_spec(4:5, background = "yellow") %>%
+  row_spec(14, background = "yellow") 
+
+```
+
+<br>
+
+Just how much does these five components make up of the total General Education Revenue formula? The chart below provides the share of these five components (basic education, sparsity, transportation sparsity, compensatory, declining enrollment) of the entire general education framework. It clearly shows that these five components make up over 90% of the entire revenue provided to public and charter schools through the general education revenue framework.
+
+<br>
+
+```{r basic ed tied components pct total rev all districts together}
+basic.ed.linked.pct.total <- master.original %>%
+  mutate(linked.comp = ifelse(categories %in% link.comp, "Linked", "Not linked")) %>%
+  group_by(linked.comp) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(pct = revenue.original / sum(revenue.original),
+         linked.comp = fct_relevel(linked.comp, "Not linked", "Linked"))
+
+basic.ed.linked.pct.total.plot <- ggplot(basic.ed.linked.pct.total, aes("", pct, fill = linked.comp)) +
+  geom_bar_interactive(stat = "identity", aes(data_id = linked.comp, tooltip = paste("Linked to basic education component: ", linked.comp, "\nTotal revenue in this group: ", dollar(revenue.original), "\nPercent of total general education revenue formula: ", percent(pct, accuracy = .1), sep = ""))) +
+  geom_label(aes(y = ifelse(linked.comp == "Linked", pct / 2, .97), label = percent(pct, accuracy = .1)), color = "black", show.legend = FALSE, size = 5) +
+  labs(x="", y = "", color="", title = "Basic education and it's linked components as share of\ntotal general education formula", subtitle = "The basic education and it's linked components comprise a significant portion of\nthe entire general education formula") +
+  coord_polar("y") +
+  theme_bar +
+  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank()) 
+
+girafe(ggobj = basic.ed.linked.pct.total.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+
+
+However, there is plenty of variation across schools. And this variation does depend on whether it's a charter or public school, it's rural-ness and geography. The map below provides a clear pattern in the percent that those 5 linked components comprise of the total revenue each district receives from the general education formula in FY22. The highest percentages exist in districts with higher property values - suburbs, districts with lake properties. Over 95% of the revenue they receive from the general education formula comes from those 5 components. The other districts receive between 85% and 95% of their revenue from those 5 components.
+
+
+
+<br>
+
+```{r basic ed and linked components as pct by district map}
+basic.ed.linked.pct.total <- master.original %>%
+  mutate(linked.comp = ifelse(categories %in% link.comp, "Linked", "Not linked")) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  drop_na(Dem_Desc)
+
+basic.ed.linked.pct.total.district <- basic.ed.linked.pct.total %>%
+  group_by(`District Name`, number, type, linked.comp) %>%
+  summarize(revenue.original = sum(revenue.original, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(`District Name`, number, type) %>%
+  mutate(pct = revenue.original / sum(revenue.original),
+         linked.comp = fct_relevel(linked.comp, "Not linked", "Linked")) %>%
+  ungroup() %>%
+  filter(linked.comp == "Linked") %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  filter(group == 1) %>%
+  filter(type != 70) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type")) 
+
+basic.ed.linked.pct.total.district.map <- ggplot(basic.ed.linked.pct.total.district) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = pct, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
+  labs(title = "Basic education linked components as percent of total general education revenue") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = basic.ed.linked.pct.total.district.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+   
+
+```
+
+<br>
+
+So what causes this variation? The districts that have lower property values tend to rely a bit more on some of the equalization components in the general education formula that aren't linked to the basic education component - namely local optional aid.
+
+<br>
+
+## Top unlinked category for each district
+
+```{r unlinked components pct remaining total rev distrit map}
+unlinked.pct.remaining.rev.districts <- basic.ed.linked.pct.total %>%
+  filter(linked.comp == "Not linked") %>%
+  left_join(total.rev.all.schools, by = c("District Name", "number", "type")) %>%
+  filter(group == 1) %>%
+  mutate(total.rev.original = total.rev.original.apu * awadm22,
+         unlinked.pct.total.rev = revenue.original / total.rev.original) %>%
+  group_by(`District Name`) %>%
+  arrange(desc(unlinked.pct.total.rev)) %>%
+  mutate(unlinked.rank = seq(n())) %>%
+  ungroup() %>%
+  filter(unlinked.pct.total.rev != "NaN")
+
+unlinked.pct.remaining.rev.districts.rank.1 <- unlinked.pct.remaining.rev.districts %>%
+  filter(unlinked.rank == 1) %>%
+  mutate(unlinked.pct.total.rev.bins = cut(unlinked.pct.total.rev,
+                                           breaks = c(unname(quantile(seq(0,1,.2)))),
+                                           labels = c(1,2,3,4))) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type"))
+
+names(unlinked.pct.remaining.rev.districts)
+
+unlinked.pct.remaining.rev.districts.comp.map <- ggplot(filter(unlinked.pct.remaining.rev.districts.rank.1, unlinked.rank == 1)) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = categories, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu")) +
+  labs(title = "Unlinked component with highest percentage of total revenue", subtitle = "Local optional aid and small schools revenue become important to rural districts with low property values") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+
+unlinked.pct.remaining.rev.districts.pct.map <- ggplot(filter(unlinked.pct.remaining.rev.districts.rank.1, unlinked.rank == 1)) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = unlinked.pct.total.rev.bins, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu")) +
+  labs(title = "Unlinked component with highest percentage of total revenue", subtitle = "Local optional aid and small schools revenue become important to rural districts with low property values") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = unlinked.pct.remaining.rev.districts.pct.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+

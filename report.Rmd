@@ -132,6 +132,7 @@ mn_counties <- st_read("Data/Shapefiles/county shapefiles/MNCounties_MNDOT.shp",
 
 ```{r shapefiles}
 school_districts <- read_sf("Data/Shapefiles/New school shapefiles/School_district_boundaries.shp", quiet = TRUE) %>%
+  ms_simplify(keep = .01) %>%
   rename(type = SDTYPE,
          number = SDNUMBER) %>%
   mutate(number = as.numeric(number),
@@ -379,13 +380,19 @@ girafe(ggobj = basic.ed.linked.pct.total.district.map, height_svg = 10, width_sv
 
 <br>
 
-So what causes this variation? The districts that have lower property values tend to rely a bit more on some of the equalization components in the general education formula that aren't linked to the basic education component - namely local optional aid.
+So what causes this variation? The districts that have lower property values tend to rely a bit more on some of the equalization components in the general education formula that aren't linked to the basic education component - namely local optional aid and small schools revenue.
+
+The maps below provide the top 3 components that are not linked to the basic education revenue component for each district. The top unlinked component for much of rural Minnesota districts is the local optional aid and small schools revenue. These typically make up 3% to 6% of the total revenue from the general education formula. The operating capital aid is the top unlinked component for many of the districts that are "property rich" such as the suburbs and within the lakes areas. 
+
+Once you get into the 2nd and 3rd highest unlinked components, it really becomes mixed across the districts. In addition, the percentage of the total revenue from the general education formula is quite low (0.5% to 3%).
 
 <br>
 
 ## Top unlinked category for each district
 
-```{r unlinked components pct remaining total rev distrit map}
+<br>
+
+```{r rank 1 unlinked components district map}
 unlinked.pct.remaining.rev.districts <- basic.ed.linked.pct.total %>%
   filter(linked.comp == "Not linked") %>%
   left_join(total.rev.all.schools, by = c("District Name", "number", "type")) %>%
@@ -401,31 +408,174 @@ unlinked.pct.remaining.rev.districts <- basic.ed.linked.pct.total %>%
 unlinked.pct.remaining.rev.districts.rank.1 <- unlinked.pct.remaining.rev.districts %>%
   filter(unlinked.rank == 1) %>%
   mutate(unlinked.pct.total.rev.bins = cut(unlinked.pct.total.rev,
-                                           breaks = c(unname(quantile(seq(0,1,.2)))),
-                                           labels = c(1,2,3,4))) %>%
+                                           breaks = c(quantile(.$unlinked.pct.total.rev, probs = seq(0,1,.2))),
+                                           labels = c(paste(percent(unname(quantile(.$unlinked.pct.total.rev, 0)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .2)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .2)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .4)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .4)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .6)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .6)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .8)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .8)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, 1)), accuracy = .1))),
+                                           include.lowest = TRUE)) %>%
   left_join(school_districts[,c(3,4,12)], by = c("number", "type"))
 
-names(unlinked.pct.remaining.rev.districts)
-
-unlinked.pct.remaining.rev.districts.comp.map <- ggplot(filter(unlinked.pct.remaining.rev.districts.rank.1, unlinked.rank == 1)) +
+unlinked.pct.remaining.rev.districts.rank.1.comp.map <- ggplot(unlinked.pct.remaining.rev.districts.rank.1) +
   geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = categories, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
   theme_sf+
   scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu")) +
-  labs(title = "Unlinked component with highest percentage of total revenue", subtitle = "Local optional aid and small schools revenue become important to rural districts with low property values") +
+  labs(subtitle = "Local optional aid and small schools revenue become important to rural districts with\nlow property values") +
   theme(legend.box.margin = margin(50, 0, 0, -100),
-        text = element_text(size = 18))
+        plot.margin = margin(-150, 0,0,0),
+        text = element_text(size = 18),
+        legend.position = "bottom")
 
 
-unlinked.pct.remaining.rev.districts.pct.map <- ggplot(filter(unlinked.pct.remaining.rev.districts.rank.1, unlinked.rank == 1)) +
+unlinked.pct.remaining.rev.districts.rank.1.pct.map <- ggplot(unlinked.pct.remaining.rev.districts.rank.1) +
   geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = unlinked.pct.total.rev.bins, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
   theme_sf+
-  scale_fill_manual(values = brewer.pal(n = 6, "RdYlBu")) +
-  labs(title = "Unlinked component with highest percentage of total revenue", subtitle = "Local optional aid and small schools revenue become important to rural districts with low property values") +
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(ncol = 2)) +
+  labs(subtitle = "\n") +
   theme(legend.box.margin = margin(50, 0, 0, -100),
-        text = element_text(size = 18))
+        plot.margin = margin(-150,0,0,0),
+        text = element_text(size = 18),
+        legend.position = "bottom")
 
-girafe(ggobj = unlinked.pct.remaining.rev.districts.pct.map, height_svg = 10, width_svg = 10) %>%
+title <- ggdraw() +
+  draw_label(
+    "Top unlinked component for each district",
+    fontface = "bold",
+    x = 0,
+    hjust = 0,
+    size = 24
+  ) +
+  theme(
+    plot.margin = margin(0,0,0,0)
+  )
+
+row.1 <- plot_grid(unlinked.pct.remaining.rev.districts.rank.1.comp.map, unlinked.pct.remaining.rev.districts.rank.1.pct.map, ncol = 2, rel_widths = c(1,1))
+
+girafe(ggobj = plot_grid(title, row.1, ncol = 1, rel_heights = c(.1, 1)), height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+<br>
+
+## 2nd highest unlinked category for each district
+
+<br>
+
+```{r rank 2 unlinked components district map}
+unlinked.pct.remaining.rev.districts.rank.2 <- unlinked.pct.remaining.rev.districts %>%
+  filter(unlinked.rank == 2) %>%
+  mutate(unlinked.pct.total.rev.bins = cut(unlinked.pct.total.rev,
+                                           breaks = c(quantile(.$unlinked.pct.total.rev, probs = seq(0,1,.2))),
+                                           labels = c(paste(percent(unname(quantile(.$unlinked.pct.total.rev, 0)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .2)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .2)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .4)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .4)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .6)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .6)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .8)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .8)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, 1)), accuracy = .1))),
+                                           include.lowest = TRUE)) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type"))
+
+unlinked.pct.remaining.rev.districts.rank.2.comp.map <- ggplot(unlinked.pct.remaining.rev.districts.rank.2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = categories, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 7, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  labs(subtitle = "The 2nd highest unlinked components is much more mixed") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        plot.margin = margin(-150, 0,0,0),
+        text = element_text(size = 18),
+        legend.position = "bottom")
+
+
+unlinked.pct.remaining.rev.districts.rank.2.pct.map <- ggplot(unlinked.pct.remaining.rev.districts.rank.2) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = unlinked.pct.total.rev.bins, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(ncol = 2)) +
+  labs(subtitle = "\n") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        plot.margin = margin(-150,0,0,0),
+        text = element_text(size = 18),
+        legend.position = "bottom")
+
+title <- ggdraw() +
+  draw_label(
+    "2nd highest unlinked component for each district",
+    fontface = "bold",
+    x = 0,
+    hjust = 0,
+    size = 24
+  ) +
+  theme(
+    plot.margin = margin(0,0,0,0)
+  )
+
+row.1 <- plot_grid(unlinked.pct.remaining.rev.districts.rank.2.comp.map, unlinked.pct.remaining.rev.districts.rank.2.pct.map, ncol = 2, rel_widths = c(1,1))
+
+girafe(ggobj = plot_grid(title, row.1, ncol = 1, rel_heights = c(.1, 1)), height_svg = 10, width_svg = 10) %>%
   girafe_options(opts_sizing(rescale = FALSE))
 
 ```
 
+
+<br>
+
+## 3rd highest unlinked category for each district
+
+<br>
+
+```{r rank 3 unlinked components district map}
+unlinked.pct.remaining.rev.districts.rank.3 <- unlinked.pct.remaining.rev.districts %>%
+  filter(unlinked.rank == 3) %>%
+  mutate(unlinked.pct.total.rev.bins = cut(unlinked.pct.total.rev,
+                                           breaks = c(quantile(.$unlinked.pct.total.rev, probs = seq(0,1,.2))),
+                                           labels = c(paste(percent(unname(quantile(.$unlinked.pct.total.rev, 0)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .2)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .2)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .4)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .4)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .6)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .6)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, .8)), accuracy = .1)),
+                                                      paste(percent(unname(quantile(.$unlinked.pct.total.rev, .8)), accuracy = .1), " to ", percent(unname(quantile(.$unlinked.pct.total.rev, 1)), accuracy = .1))),
+                                           include.lowest = TRUE)) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type"))
+
+unlinked.pct.remaining.rev.districts.rank.3.comp.map <- ggplot(unlinked.pct.remaining.rev.districts.rank.3) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = categories, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 9, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  labs(subtitle = "The 2nd highest unlinked components is much more mixed") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        plot.margin = margin(-150, 0,0,0),
+        text = element_text(size = 18),
+        legend.position = "bottom")
+
+
+unlinked.pct.remaining.rev.districts.rank.3.pct.map <- ggplot(unlinked.pct.remaining.rev.districts.rank.3) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = unlinked.pct.total.rev.bins, data_id = `District Name`, tooltip = paste(`District Name`, "\nRank of component: ", unlinked.rank, "\nUnlinked component: ", categories, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(unlinked.pct.total.rev, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(ncol = 2)) +
+  labs(subtitle = "\n") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        plot.margin = margin(-150,0,0,0),
+        text = element_text(size = 18),
+        legend.position = "bottom")
+
+title <- ggdraw() +
+  draw_label(
+    "3rd highest unlinked component for each district",
+    fontface = "bold",
+    x = 0,
+    hjust = 0,
+    size = 24
+  ) +
+  theme(
+    plot.margin = margin(0,0,0,0)
+  )
+
+row.1 <- plot_grid(unlinked.pct.remaining.rev.districts.rank.3.comp.map, unlinked.pct.remaining.rev.districts.rank.3.pct.map, ncol = 2, rel_widths = c(1,1))
+
+girafe(ggobj = plot_grid(title, row.1, ncol = 1, rel_heights = c(.1, 1)), height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```

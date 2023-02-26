@@ -40,7 +40,8 @@ library(ggtext)
 library(gmodels)
 library(ggpattern)
 library(EnvStats)
-
+library(ggsflabel)
+library(treemapify)
 ```
 
 ```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
@@ -297,7 +298,11 @@ kable(format = "html", bbe, escape = F, caption = "Table 1: Belgrade-Brooten-Elr
 
 <br>
 
-Just how much does these five components make up of the total General Education Revenue formula? The chart below provides the share of these five components (basic education, sparsity, transportation sparsity, compensatory, declining enrollment) of the entire general education framework. It clearly shows that these five components make up over 90% of the entire revenue provided to public and charter schools through the general education revenue framework.
+# Linked and unlinked components in the General Education Formula{.tabset}
+
+Fortunately, by increasing the basic education revenue component of the formula we are increasing the components that make up 80% or more of the entire general education revenue formula provided to districts.
+
+The chart below provides the share of these five components (basic education, sparsity, transportation sparsity, compensatory, declining enrollment) of the entire general education framework. It clearly shows that these five components make up over 90% of the entire revenue provided to public and charter schools through the general education revenue framework.
 
 <br>
 
@@ -338,7 +343,7 @@ girafe(ggobj = basic.ed.linked.pct.total.plot, width_svg = 10, height_svg = 10) 
 
 
 
-However, there is plenty of variation across schools. And this variation does depend on whether it's a charter or public school, it's rural-ness and geography. The map below provides a clear pattern in the percent that those 5 linked components comprise of the total revenue each district receives from the general education formula in FY22. The highest percentages exist in districts with higher property values - suburbs, districts with lake properties. Over 95% of the revenue they receive from the general education formula comes from those 5 components. The other districts receive between 85% and 95% of their revenue from those 5 components.
+However, there is plenty of variation across schools. The map below provides a clear pattern in the percent that those 5 linked components comprise of the total revenue each district receives from the general education formula in FY22. The highest percentages exist in districts with higher property values - suburbs, districts with lake properties. Over 95% of the revenue they receive from the general education formula comes from those 5 components. The other districts receive between 85% and 95% of their revenue from those 5 components.
 
 
 
@@ -368,7 +373,7 @@ basic.ed.linked.pct.total.district.map <- ggplot(basic.ed.linked.pct.total.distr
   geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = pct, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
   theme_sf+
   scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
-  labs(title = "Basic education linked components as percent of total general education revenue") +
+  labs(title = "Basic education linked components as percent of total\ngeneral education revenue", subtitle = "The highest percentages are in high property value districts such as\nthe suburbs and lakes regions.") +
   theme(legend.box.margin = margin(50, 0, 0, -100),
         text = element_text(size = 18))
 
@@ -384,7 +389,7 @@ So what causes this variation? The districts that have lower property values ten
 
 The maps below provide the top 3 components that are not linked to the basic education revenue component for each district. The top unlinked component for much of rural Minnesota districts is the local optional aid and small schools revenue. These typically make up 3% to 6% of the total revenue from the general education formula. The operating capital aid is the top unlinked component for many of the districts that are "property rich" such as the suburbs and within the lakes areas. 
 
-Once you get into the 2nd and 3rd highest unlinked components, it really becomes mixed across the districts. In addition, the percentage of the total revenue from the general education formula is quite low (0.5% to 3%).
+Once you get into the 2nd and 3rd highest unlinked components, it really becomes mixed across the districts. In addition, the percentage of the total revenue from the general education formula that each unlinked component comprises is quite low (0.5% to 3%).
 
 <br>
 
@@ -579,3 +584,209 @@ girafe(ggobj = plot_grid(title, row.1, ncol = 1, rel_heights = c(.1, 1)), height
   girafe_options(opts_sizing(rescale = FALSE))
 
 ```
+
+<br>
+
+# Examples
+
+As the above analysis shows, the variation in reliance cuts across rural-ness and geographic location and is determined more by property values. Let's use school districts in the Northwest region of the state as an example.
+
+The map below provides the percentage that the basic education revenue and it's linked components of the total revenue received from the general education formula. The highest percentages are in school districts that have high property values around the lakes region. 
+
+<br>
+
+```{r basic ed and linked components as pct of total rev in NW}
+basic.ed.linked.pct.total.district.nw <- basic.ed.linked.pct.total.district %>%
+  filter(planning.region == "Northwest")
+
+basic.ed.linked.pct.total.district.nw.map <- ggplot(basic.ed.linked.pct.total.district.nw) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = pct, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
+  labs(title = "Basic education linked components as percent of total\ngeneral education revenue", subtitle = "The highest percentages are in high property value districts such as\nPequot Lakes and Minnewaska school districts.") +
+  theme(legend.box.margin = margin(0, 0, 0, 0),
+        text = element_text(size = 18))
+
+girafe(ggobj = basic.ed.linked.pct.total.district.nw.map, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
+
+```
+
+<br>
+
+Let's compare the composition of the general education revenue for the following districts;
+
+* Crosby-Ironton Public School District (Town/rural mix)
+* Moorhead Public School District (Entirely urban)
+* Badger Public School District (Town/rural mix)
+* Ada-Borup Public School District (Entirely rural).
+
+These districts represent a variety of school types - a mix of rural-ness as well as property rich (Crosby-Ironton Public School District) vs. property poor (Badger Public School District).
+
+The chart below provides each components share of the general education revenue formula for each district. They highlight some of the differences across the region and how property values and rural-ness can impact the composition of the various components within the general education formula.
+
+Ada-Borup-West public school district is located in an entirely rural county and had 794 adjusted pupil units in FY22. It doesn't have lakes within the region and therefore is reliant on ag land, and mostly residential properties. It gets 91% of it's revenue from components linked to the basic education component;
+
+* Basic education: 79.4%
+* Compensatory: 6.6%
+* Transportation sparsity: 4.8%
+
+Another large percentage (~5%) comes from local optional aid to help make up for the lack of higher property values within the district.
+
+The Badger Public School district is in a town/rural mix county and had 225 adjusted pupil units in FY22. Due to it's property values, it's isolated location, and the small number of students it educates, it relies a bit more on a variety of different components. 87% of their revenue comes from components linked to the basic education component;
+
+* Basic education: 73.2%
+* Transportation sparsity: 4.8%
+* Compensatory: 4.1%
+* Sparsity: 2.8%
+* Declining enrollment: 1.9%
+
+In addition, it also receives additional aid from local optional aid (5.1%), small schools revenue (4.5%), and operating capital aid 2.0%.
+
+The Crosby-Ironton public school district in a town/rural mix county and had 1,095 adjusted pupil units. The district has many lake properties within it's boundaries and is considered "property rich". Due to this, only a few components contribute to the districts total revenue from the general education formula. It receives about 99% of it's revenue from the basic education and it's linked components;
+
+* Basic education: 91%
+* Compensatory: 4.6%
+* Transportation sparsity: 3.2%
+
+It receives less than 1% of it's general education formula funds from pension adjustment, local optional aid, gifted and talented, english learners, and operating capital.
+
+Lastly, the Moorhead Public School District is in an entirely urban county and had 7,749 adjusted pupil units in FY22. Due to it's urbanness and mix of residential and commercial property taxes, it has a different composition of compnents it relies on. It receives 93% of it's general education revenue from bsic education and linked components;
+
+* Basic education: 86%
+* Compensatory: 6%
+* Transportation sparsity: 1%
+
+Revenue from local optional aid and operating capital aid make up most of the remaining dollars.
+
+<br>
+
+```{r component comparison in NW}
+comparisons <- basic.ed.linked.pct.total %>%
+  filter(`District Name` %in% c("Crosby-Ironton Public School District", "Moorhead Area Public School District", "Badger Public School District", "Ada-Borup-West Public Schools")) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(`District Name`, Category, revenue.original, linked.comp) %>%
+  group_by(`District Name`) %>%
+  mutate(total.rev = sum(revenue.original)) %>%
+  ungroup() %>%
+  mutate(pct = revenue.original / total.rev) %>%
+  select(`District Name`, Category, linked.comp, revenue.original, total.rev, pct) %>%
+  group_by(`District Name`) %>%
+  arrange(pct) %>%
+  ungroup() %>%
+  left_join(school_districts[,c(5, 12)], by = c("District Name" = "PREFNAME")) %>%
+  mutate(data_id = as.character(seq(n())))
+
+comparison.crosby.map <- ggplot(basic.ed.linked.pct.total.district.nw) +
+  geom_sf_interactive(color = "grey85", fill = "grey85", aes(geometry = geometry, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
+  geom_sf_interactive(data = comparisons, aes(fill = `District Name`, geometry = geometry, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
+  scale_fill_manual(values = brewer.pal(n = 4, "RdYlBu")) +
+  theme_sf +
+  labs(title = "Comparing 4 school districts in NW Minnesota", y = "", x = "") +
+  theme(legend.box.margin = margin(0, 0, 0, 0),
+        text = element_text(size = 18))
+
+girafe(ggobj = comparison.crosby.map, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+tags$br()
+
+
+comparisons.plot <- ggplot(comparisons, aes(reorder(Category, pct), pct, fill = `District Name`, group = `District Name`)) +
+  facet_wrap(~`District Name`, ncol = 1) +
+  geom_col_interactive(aes(data_id = data_id, tooltip = paste(`District Name`, "\nComponent: ", Category, "\nLinked to basic education revenue?: ", linked.comp, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of general education formula: ", percent(pct, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
+  geom_label(aes(label = percent(pct, accuracy = .1)), show.legend = FALSE) +
+  labs(x="", y = "", color="", title = "Percent share of general education formula")+
+  scale_y_continuous(labels=scales::percent) +
+  coord_flip() +
+  scale_fill_manual(values = brewer.pal(n = 4, "RdYlBu")) +
+  theme_bar+
+  theme(legend.position = "none",
+        text = element_text(size = 18),
+        axis.text.x = element_text(angle = 25, hjust = .9))
+
+
+girafe(ggobj = comparisons.plot, width_svg = 10, height_svg = 14) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))     
+
+
+
+```
+
+<br>
+
+# Charter schools
+
+So far, we've only discussed and compared public school districts. How do charter schools play a role in all of this? First, it's important to know where charter schools are located. And a huge majority of them are in the seven county metro.
+
+In the seven-county metro, there are 129 charter schools which is 73% of the total schools in those counties. For comparison, there are 55 charter schools outside of the seven county metro and they make up 16% of the total schools in greater Minnesota.
+
+<br>
+
+```{r charter school location}
+charter.pr <- scenarios.5yr.districts %>%
+  left_join(district.join[,c(1,2,3,4)], by = c("District Name", "number", "type")) %>%
+  distinct(`District Name`, .keep_all = TRUE) %>%
+  drop_na(planning.region) %>%
+  filter(group %in% c(1,4)) %>%
+  group_by(planning.region, group) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  group_by(planning.region) %>%
+  mutate(pct = n / sum(n)) %>%
+  ungroup() %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  mutate(data_id = as.character(seq(n())))
+
+charter.pr.plot <- ggplot(charter.pr, aes(planning.region, n, fill = Definition, group = Definition)) +
+  geom_col_interactive(position = "dodge", aes(data_id = data_id, tooltip = paste(planning.region, "\nType of school: ", Definition, "\nNumber of schools: ", comma(n), "\nPercent of total schools: ", percent(pct, accuracy = .1), sep = ""))) +
+  geom_label(aes(label = comma(n)), show.legend = FALSE, color = "white", size = 5, position = position_dodge(width = .9)) +
+  labs(x="", y = "", color="", title = "Percent share of total schools in planning regions") +
+  scale_y_continuous(labels=scales::comma)+
+  theme_bar+
+  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        text = element_text(size = 18),
+        axis.text.x = element_text(angle = 25, hjust = .9))
+
+
+girafe(ggobj = charter.pr.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+```
+
+<br>
+
+Interestingly, charter schools also have some of the highest revenue per APU.
+
+<br>
+
+```{r charter revenue per apu}
+
+```
+
+<br>
+
+# Projections
+
+The big question is whether continued increases to only basic education (which also increases 4 other components) will throw the entire general education formula "out-of-whack". The design of the general education revenue formula means that no matter what, some districts will receive more funds per APU than others. It's the nature of having a formula that attempts to "equalize" resources across the state. 
+
+The way to determine if the formula is significantly benefiting some schools more than another by only increasing one component of the formula is compare the order of  of school districts, arranged from highest revenue per APU to lowest revenue per APU, before and after the increases. This also means that all other variables (such as adjusted pupil units, property values, and district boundaries) remain constant.
+
+<br>
+
+```{r projections districts order}
+rank.original.districts <- scenarios.5yr.districts
+
+names(rank.original.districts)
+```
+

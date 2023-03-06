@@ -40,8 +40,10 @@ library(ggtext)
 library(gmodels)
 library(ggpattern)
 library(EnvStats)
-library(ggsflabel)
 library(treemapify)
+library(waffle)
+library(data.table)
+library(ggpattern)
 ```
 
 ```{r loading jon docs and shapefiles, cache=TRUE, include=FALSE}
@@ -589,142 +591,155 @@ girafe(ggobj = plot_grid(title, row.1, ncol = 1, rel_heights = c(.1, 1)), height
 
 # Examples
 
-As the above analysis shows, the variation in reliance cuts across rural-ness and geographic location and is determined more by property values. Let's use school districts in the Northwest region of the state as an example.
+As the above sections highlight, the general education formula has many mechanisms in which districts receive funding, and because of it's nature to equalize revenue, some districts can more revenue than others per APU. This also means that the variation in reliance to different components of the general education formula cuts across rural-ness and geographic location and is determined more by property values. Let's use school districts in the Northwest region of the state as an example.
 
-The map below provides the percentage that the basic education revenue and it's linked components of the total revenue received from the general education formula. The highest percentages are in school districts that have high property values around the lakes region. 
+The map below provides the total revenue each district received from the general education formula per adjusted pupil unit in FY22. The shades of color represent the revenue per APU with each break representing 20% of the school districts - 20% of the districts received $7,142.98 to $7,761.14, the next 20% of districts received $7,761.15 to $8,081.35 per adjusted pupil unit, and so on.
+
+A couple of patterns show that districts that are further up north typically receive higher revenue per APU, more than $8,500 per APU, while districts in the sourthern portion of the region receive less. In addition, districts with significant amount of lake properties or industry typically receive less as well.
 
 <br>
 
-```{r basic ed and linked components as pct of total rev in NW}
-basic.ed.linked.pct.total.district.nw <- basic.ed.linked.pct.total.district %>%
-  filter(planning.region == "Northwest")
+```{r revenue per apu NW}
+rev.apu.nw <- total.rev.all.schools %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  filter(planning.region == "Northwest") %>%
+  filter(group ==1) %>%
+  filter(`District Name` != "Pine Point Public School District") %>%
+  mutate(bins = cut(total.rev.original.apu,
+                    breaks = c(quantile(total.rev.original.apu, probs = seq(0,1, by = .2))),
+                    labels = c(paste(dollar(unname(quantile(total.rev.original.apu, 0))), " to ", dollar(unname(quantile(total.rev.original.apu, .2)))),
+                               paste(dollar(unname(quantile(total.rev.original.apu, .2))), " to ", dollar(unname(quantile(total.rev.original.apu, .4)))),
+                               paste(dollar(unname(quantile(total.rev.original.apu, .4))), " to ", dollar(unname(quantile(total.rev.original.apu, .6)))),
+                               paste(dollar(unname(quantile(total.rev.original.apu, .6))), " to ", dollar(unname(quantile(total.rev.original.apu, .8)))),
+                               paste(dollar(unname(quantile(total.rev.original.apu, .8))), " to ", dollar(unname(quantile(total.rev.original.apu, 1))))),
+                    include.lowest = TRUE)) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type"))
 
-basic.ed.linked.pct.total.district.nw.map <- ggplot(basic.ed.linked.pct.total.district.nw) +
-  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = pct, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
+
+rev.apu.nw.map <- ggplot(rev.apu.nw) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = bins, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue from general education formula per apu: ", dollar(total.rev.original.apu), sep = ""))) +
   theme_sf+
-  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
-  labs(title = "Basic education linked components as percent of total\ngeneral education revenue", subtitle = "The highest percentages are in high property value districts such as\nPequot Lakes and Minnewaska school districts.") +
-  theme(legend.box.margin = margin(0, 0, 0, 0),
+  scale_fill_manual(values = brewer.pal(n = 6, "PuBu"),
+                    guide = guide_legend(reverse = TRUE)) +
+  labs(title = "Total revenue from general education formula per APU") +
+  theme(legend.box.margin = margin(0, 0, 0, -0),
         text = element_text(size = 18))
 
-girafe(ggobj = basic.ed.linked.pct.total.district.nw.map, width_svg = 10, height_svg = 7) %>%
-  girafe_options(opts_selection(type = "none"),
-                 opts_toolbar(saveaspng = FALSE),
-                 opts_sizing(rescale = FALSE))
-
-
+girafe(ggobj = rev.apu.nw.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
 
 ```
+
 
 <br>
 
 Let's compare the composition of the general education revenue for the following districts;
 
-* Crosby-Ironton Public School District (Town/rural mix)
-* Moorhead Public School District (Entirely urban)
-* Badger Public School District (Town/rural mix)
-* Ada-Borup Public School District (Entirely rural).
+* Grygla Public School District (highest revenue per APU from general education formula, $12,978.90)
+* Pequot Lakes Public Schools (lowest revenue per APU from general education formula, $7,142.98)
+* Moorhead Public School District (an entirely urban school, $7,784.95)
+* Ada-Borup Public School District (an entirely rural school, $8,474.33).
 
-These districts represent a variety of school types - a mix of rural-ness as well as property rich (Crosby-Ironton Public School District) vs. property poor (Badger Public School District).
+These districts represent a variety of school types - a mix of rural-ness as well as a variety of property types within their districts.
 
-The chart below provides each components share of the general education revenue formula for each district. They highlight some of the differences across the region and how property values and rural-ness can impact the composition of the various components within the general education formula.
-
-Ada-Borup-West public school district is located in an entirely rural county and had 794 adjusted pupil units in FY22. It doesn't have lakes within the region and therefore is reliant on ag land, and mostly residential properties. It gets 91% of it's revenue from components linked to the basic education component;
-
-* Basic education: 79.4%
-* Compensatory: 6.6%
-* Transportation sparsity: 4.8%
-
-Another large percentage (~5%) comes from local optional aid to help make up for the lack of higher property values within the district.
-
-The Badger Public School district is in a town/rural mix county and had 225 adjusted pupil units in FY22. Due to it's property values, it's isolated location, and the small number of students it educates, it relies a bit more on a variety of different components. 87% of their revenue comes from components linked to the basic education component;
-
-* Basic education: 73.2%
-* Transportation sparsity: 4.8%
-* Compensatory: 4.1%
-* Sparsity: 2.8%
-* Declining enrollment: 1.9%
-
-In addition, it also receives additional aid from local optional aid (5.1%), small schools revenue (4.5%), and operating capital aid 2.0%.
-
-The Crosby-Ironton public school district in a town/rural mix county and had 1,095 adjusted pupil units. The district has many lake properties within it's boundaries and is considered "property rich". Due to this, only a few components contribute to the districts total revenue from the general education formula. It receives about 99% of it's revenue from the basic education and it's linked components;
-
-* Basic education: 91%
-* Compensatory: 4.6%
-* Transportation sparsity: 3.2%
-
-It receives less than 1% of it's general education formula funds from pension adjustment, local optional aid, gifted and talented, english learners, and operating capital.
-
-Lastly, the Moorhead Public School District is in an entirely urban county and had 7,749 adjusted pupil units in FY22. Due to it's urbanness and mix of residential and commercial property taxes, it has a different composition of compnents it relies on. It receives 93% of it's general education revenue from bsic education and linked components;
-
-* Basic education: 86%
-* Compensatory: 6%
-* Transportation sparsity: 1%
-
-Revenue from local optional aid and operating capital aid make up most of the remaining dollars.
 
 <br>
 
-```{r component comparison in NW}
+```{r component comparison in NW map}
 comparisons <- basic.ed.linked.pct.total %>%
-  filter(`District Name` %in% c("Crosby-Ironton Public School District", "Moorhead Area Public School District", "Badger Public School District", "Ada-Borup-West Public Schools")) %>%
+  filter(`District Name` %in% c("Pequot Lakes Public Schools", "Moorhead Area Public School District", "Grygla Public School District", "Ada-Borup-West Public Schools")) %>%
   left_join(var.codes, by = c("categories" = "Code")) %>%
-  select(`District Name`, Category, revenue.original, linked.comp) %>%
+  select(`District Name`, Category, revenue.original, linked.comp, awadm22) %>%
   group_by(`District Name`) %>%
   mutate(total.rev = sum(revenue.original)) %>%
   ungroup() %>%
-  mutate(pct = revenue.original / total.rev) %>%
-  select(`District Name`, Category, linked.comp, revenue.original, total.rev, pct) %>%
+  mutate(cat.rev.apu = revenue.original / awadm22,
+         total.rev.apu = total.rev / awadm22,
+         pct = cat.rev.apu / total.rev.apu) %>%
+  select(`District Name`, Category, linked.comp, cat.rev.apu, total.rev.apu, pct) %>%
   group_by(`District Name`) %>%
   arrange(pct) %>%
   ungroup() %>%
   left_join(school_districts[,c(5, 12)], by = c("District Name" = "PREFNAME")) %>%
   mutate(data_id = as.character(seq(n())))
 
-comparison.crosby.map <- ggplot(basic.ed.linked.pct.total.district.nw) +
-  geom_sf_interactive(color = "grey85", fill = "grey85", aes(geometry = geometry, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
-  geom_sf_interactive(data = comparisons, aes(fill = `District Name`, geometry = geometry, data_id = `District Name`, tooltip = paste(`District Name`, "\nRevenue from components linked to basic ed: ", dollar(revenue.original), "\nPercent of total revenue from general education formula: ", percent(pct, accuracy = .1), sep = ""))) +
+comparison.map <- ggplot(rev.apu.nw) +
+  geom_sf_interactive(color = "grey85", fill = "grey85", aes(geometry = geometry, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue from general education formula per apu: ", dollar(total.rev.original.apu), sep = ""))) +
+  geom_sf_interactive(data = comparisons, aes(fill = `District Name`, geometry = geometry, data_id = `District Name`, tooltip = paste(`District Name`, sep = ""))) +
   scale_fill_manual(values = brewer.pal(n = 4, "RdYlBu")) +
   theme_sf +
   labs(title = "Comparing 4 school districts in NW Minnesota", y = "", x = "") +
   theme(legend.box.margin = margin(0, 0, 0, 0),
         text = element_text(size = 18))
 
-girafe(ggobj = comparison.crosby.map, width_svg = 10, height_svg = 7) %>%
+girafe(ggobj = comparison.map, width_svg = 10, height_svg = 7) %>%
   girafe_options(opts_selection(type = "none"),
                  opts_toolbar(saveaspng = FALSE),
                  opts_sizing(rescale = FALSE))
-
-tags$br()
-
-
-comparisons.plot <- ggplot(comparisons, aes(reorder(Category, pct), pct, fill = `District Name`, group = `District Name`)) +
-  facet_wrap(~`District Name`, ncol = 1) +
-  geom_col_interactive(aes(data_id = data_id, tooltip = paste(`District Name`, "\nComponent: ", Category, "\nLinked to basic education revenue?: ", linked.comp, "\nRevenue from component: ", dollar(revenue.original), "\nPercent of general education formula: ", percent(pct, accuracy = .1), sep = "")), position = position_dodge(width = .5)) +
-  geom_label(aes(label = percent(pct, accuracy = .1)), show.legend = FALSE) +
-  labs(x="", y = "", color="", title = "Percent share of general education formula")+
-  scale_y_continuous(labels=scales::percent) +
-  coord_flip() +
-  scale_fill_manual(values = brewer.pal(n = 4, "RdYlBu")) +
-  theme_bar+
-  theme(legend.position = "none",
-        text = element_text(size = 18),
-        axis.text.x = element_text(angle = 25, hjust = .9))
-
-
-girafe(ggobj = comparisons.plot, width_svg = 10, height_svg = 14) %>%
-  girafe_options(opts_selection(type = "none"),
-                 opts_sizing(rescale = FALSE))     
-
-
 
 ```
 
 <br>
 
-# Charter schools
+The chart below provides each components share of the general education revenue formula for each district. They highlight some of the differences across the region and how property values and rural-ness can impact the composition of the various components within the general education formula. Each color represents the difference component of the general education. The various shades of blue are the components that are linked to the basic education component (darkest blue). The squares with no color represent the gap in revenue per adjusted pupil unit between Grygla Public School District (highest revenue per adjusted pupil unit) and the other districts.
 
-So far, we've only discussed and compared public school districts. How do charter schools play a role in all of this? First, it's important to know where charter schools are located. And a huge majority of them are in the seven county metro.
+The general education revenue composition for the Grygla Public School District shows a broad range of components. The largest components are linked to the basic education revenue component - sparsity and transportation sparsity. They also receive a significant amount from the small schools component and a bit for local optional aid, operating capital aid, and pensions adjustment.
+
+In Ada-Borup-West, the composition of components is a bit thing. They receive a bit more from the compensatory revenue stream as well as transportation sparsity in the components that are linked to the basic education revenue. They also get some help in the form of local optional aid.
+
+In Moorhead, the big component that provides additional support is compensatory and a bit from local optional aid.
+
+And then Pequot Lakes essentially only receives support via the basic education component and then a small bit from compensatory, transportation sparsity, and pensions adjustment.
+
+What this tells us is that the general education revenue formula is meant to provide a base of funding (the basic education component) for all districts, and then add additional support depending on the characteristics of the district - property values, higher transportation costs, economies of scale - all which can lead to higher costs for districts. 
+
+<br>
+
+```{r comparison waffle chart nw}
+
+comparisons.total.rev.apu <- comparisons %>%
+  select(`District Name`, total.rev.apu) %>%
+  mutate(max.total.rev.apu = max(total.rev.apu),
+         `Less total rev` =  max.total.rev.apu - total.rev.apu)  %>%
+  gather(key = "Category", value = "cat.rev.apu", 4) %>%
+  mutate(linked.comp = "Not linked") %>%
+  select(-total.rev.apu) %>%
+  group_by(`District Name`) %>%
+  distinct(cat.rev.apu, .keep_all = TRUE)
+
+comparisons.pct.highest.apu <- comparisons %>%
+  mutate(max.total.rev.apu = max(total.rev.apu)) %>%
+  select(`District Name`, Category, linked.comp, cat.rev.apu, max.total.rev.apu) %>%
+  rbind(comparisons.total.rev.apu) %>%
+  mutate(cat.pct.highest.rev.apu = cat.rev.apu / max.total.rev.apu,
+         Category = as.factor(Category),
+         Category = fct_relevel(Category, "Basic education", "Compensatory", "Sparsity", "Transportation sparsity", "Declining enrollment", "Local optional aid", "Operating capital aid", "Small schools", "Gifted and talented", "English learners", "Equity aid", "Extended time", "Pensions adjustment", "Transition aid", "Less total rev"),
+         `District Name` = fct_relevel(`District Name`, "Grygla Public School District", "Ada-Borup-West Public Schools", "Moorhead Area Public School District", "Pequot Lakes Public Schools")) %>%
+  setorder(Category)
+
+plot <- ggplot(comparisons.pct.highest.apu, aes(fill = Category, values = cat.rev.apu/100)) +
+  facet_wrap(~`District Name`, ncol = 2) +
+  geom_waffle(flip = TRUE, size = .33, n_rows = 10, color = "grey85", make_proportional = TRUE) +
+  coord_equal() +
+  theme_sf + 
+  labs(title = "Composition of general education revenue formula", subtitle = "Each box represents a $130 per adjusted pupil unit") +
+  scale_fill_manual(values = c("#053061", "#2166ac", "#4393c3", "#92c5de", "#b3de69", "#ffffb3", "#bebada", "#fb8072", "#fdb462", "transparent"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        text = element_text(size = 18))
+
+girafe(ggobj = plot, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+<br>
+
+Besides rural-ness and geography, the type of school (public vs. charter) can also play a role in differences in funding from the general education revenue formula.
+
+First, it's important to know where charter schools are located. And a huge majority of them are in the seven county metro.
 
 In the seven-county metro, there are 129 charter schools which is 73% of the total schools in those counties. For comparison, there are 55 charter schools outside of the seven county metro and they make up 16% of the total schools in greater Minnesota.
 
@@ -766,27 +781,413 @@ girafe(ggobj = charter.pr.plot, width_svg = 10, height_svg = 10) %>%
 
 <br>
 
-Interestingly, charter schools also have some of the highest revenue per APU.
+What's interesting is that the revenue per adjusted pupil units are very different between charter schools and public schools in the seven county metro. The chart below are boxplots that provide the 25% and 75% range of total revenue per adjusted pupil unit for schools, along with the median (black line within the box), and the outliers (black dots).
+
+The boxplots for charter schools and public schools outside of the seven county metro are very similar. Most school districts range from $7,500 to $10,000 per adjusted pupil unit with medians around $8,100. However, the ranges are very different in the seven county metro. The range of total revenue per adjusted pupil unit for charter schools in the seven county metro range from jus below $8,000 to just over $10,000 per adjusted pupil unit while the range for public schools is significantly lower - well below $8,000.  The medians are also exceptionally different - $9,100 for charter schools vs. $7,300 for public schools.
 
 <br>
 
 ```{r charter revenue per apu}
+total.rev.apu.group <- total.rev.all.schools %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  mutate(metro.not = ifelse(planning.region == "Seven County Mpls-St Paul", "Seven County Metro", "Greater MN")) %>%
+  drop_na(metro.not)
+
+total.rev.apu.group.plot <- ggplot(total.rev.apu.group, aes(metro.not, total.rev.original.apu, fill = Definition)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge",
+                           aes(data_id = group,
+                               tooltip = after_stat({
+                                 paste("Q1: ", prettyNum(.data$ymin),
+                                       "\nMedian: ", prettyNum(.data$middle),
+                                       "\nQ3: ", prettyNum(.data$ymax))
+                               }))) +
+  labs(x="", y = "", color="", title = "Total revenue per APU")+
+  scale_y_continuous(labels=scales::dollar) +
+  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu")) +
+  theme_line+
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = total.rev.apu.group.plot, width_svg = 10, height_svg = 7) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_toolbar(saveaspng = FALSE),
+                 opts_sizing(rescale = FALSE))
+
+
 
 ```
 
 <br>
 
-# Projections
+So what's going on here? Again, the composition of the school districts general education formula tell the story. Let's compare four districts in the metro to get a sense of formula revenue composition.
+
+1. Sejong Academy of Minnesota: This is a K-10 Korean Immersion Charter school with 186 adjusted pupil units located in St. Paul, MN. It received the highest general education revenue per adjusted pupil unit in the seven county metro - $13,499.46.
+
+2. St. Croix Preparatory Academy: This is a K-12 charter school with 1,278 adjusted pupil units located in Stillwater, MN. It received the lowest general education revenue per adjusted pupil unit of charter schools in the seven county metro - $7,067.96.
+
+3. Brooklyn Center School District: This is a K-12 public school with 2,549 adjusted pupil units located in Brooklyn Center. It received the highest general education revenue per adjusted pupil unit of public schools in the seven county metro - $9,529.78
+
+4. Minnetonka Public School District - This is a K-12 public school with 12,178 adjusted pupil units located in Minnetonka. It receive the lowest general education revenue per adjusted pupil unit of all schools in Minnesota - $6,948.97.
+
+These four districts represent the highest and lowest revenues for public schools and charter schools in the seven county metro and will provide an appropriate reflection of the variation in general education revenue formula composition.
+
+Below are waffle charts that provide a representation of the component composition. Each block represents $135 in revenue per adjusted pupil unit and the colors represent the component from which the revenue originates.
+
+Starting with Sejong Academy of Minnesota, we can see that the compensatory component makes up a large chunk of the additional revenue that district receives. In addition, declining enrollment played a role that year as well. Outside of the linked components, their revenue also comes from unlinked components such as english learners and small schools revenue playing a role.
+
+The other charter school, St. Croix Preparatory Academy, only receives additional operating capital aid. Otherwise, it is only provided basic education revenue.
+
+Of the public school districts, Brooklyn Center receives funding from the broadest number of components of the general education formula. Compensatory is a major proportion of their revenue. The unlinked components that add additional support to the district are local optional aid, and extended time revenue. Minnetonka, on the other hand, only receives a bit of operating capital aid on top of the basic education revenue component.
+
+
+<br>
+
+```{r waffle chart metro charter vs public}
+less.total.rev.comparisons.charter.public <- master.original %>%
+  filter(`District Name` %in% c("Sejong Academy of Minnesota", "St. Croix Preparatory Academy", "Brooklyn Center School District", "Minnetonka Public School District")) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE)) %>%
+  ungroup() %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  left_join(group.codes, by = c("group" = "Code")) %>%
+  mutate(total.rev.original.apu = total.rev.original / awadm22,
+         max.total.rev.original.apu = max(total.rev.original.apu),
+         `Less total rev` = max.total.rev.original.apu - total.rev.original.apu) %>%
+  select(`District Name`, Definition, `Less total rev`) %>%
+  gather(key = "Category", value = "revenue.original.apu", 3)
+
+total.rev.comparisons.charter.public <- master.original %>%
+  filter(`District Name` %in% c("Sejong Academy of Minnesota", "St. Croix Preparatory Academy", "Brooklyn Center School District", "Minnetonka Public School District")) %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original = sum(revenue.original, na.rm = TRUE)) %>%
+  ungroup() %>%
+  select(`District Name`, total.rev.original)
+  
+comparisons.charter.public <- scenarios.5yr.districts %>%
+  filter(`District Name` %in% c("Sejong Academy of Minnesota", "St. Croix Preparatory Academy", "Brooklyn Center School District", "Minnetonka Public School District")) %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(`District Name`, Definition, Category, revenue.original.apu) %>%
+  rbind(less.total.rev.comparisons.charter.public) %>%
+  left_join(total.rev.comparisons.charter.public, by = "District Name") %>%
+  mutate(Category = as.factor(Category),
+         Category = fct_relevel(Category, "Basic education", "Compensatory", "Sparsity", "Transportation sparsity", "Declining enrollment", "Local optional aid", "Operating capital aid", "Small schools", "Gifted and talented", "English learners", "Equity aid", "Extended time", "Pensions adjustment", "Transition aid", "Less total rev"),
+         `District Name` = fct_relevel(`District Name`, "Sejong Academy of Minnesota", "St. Croix Preparatory Academy", "Brooklyn Center School District", "Minnetonka Public School District")) %>%
+    setorder(Category)
+
+
+plot <- ggplot(comparisons.charter.public, aes(fill = Category, values = revenue.original.apu/100)) +
+  facet_wrap(~`District Name`, ncol = 2) +
+  geom_waffle(flip = TRUE, size = .33, n_rows = 10, color = "grey85", make_proportional = TRUE) +
+  coord_equal() +
+  theme_sf + 
+  labs(title = "Composition of general education revenue formula", subtitle = "Each box represents a $135 per adjusted pupil unit") +
+  scale_fill_manual(values = c("#053061", "#2166ac", "#4393c3", "#92c5de", "#b3de69", "#ffffb3", "#bebada", "#fb8072", "#fdb462", "#33a02c", "transparent"),
+                    guide = guide_legend(ncol = 3)) +
+  theme(legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        text = element_text(size = 18))
+
+girafe(ggobj = plot, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+
+
+```
+
+<br>
+
+Reviewing the composition of funding components that districts receive, one thing becomes abundantly clear - the basic education revenue and it's linked components make up a large majority of the funding support that schools receive. The basic education revenue component provides a baseline funding for all schools depending on their adjusted pupil units whereas the other 4 components support districts depending on the economic composition of their student body, the added expenses of being small but serving a large geographic area, and lessening the blow from declining enrollment. 
+
+The unlinked components serve as smaller additional support systems to help acknowledge the unique challenges that some schools face -  local optional aid acknowledges that differences in a districts ability to raise revenue from local property taxes, small schools revenue acknowledges the challenges in finding economies of scale, and english learners revenue acknowledges the additional resources needed to teach students whose english isn't their first language.
+
+<br>
+
+# Changes in revenue after increases to basic education component
 
 The big question is whether continued increases to only basic education (which also increases 4 other components) will throw the entire general education formula "out-of-whack". The design of the general education revenue formula means that no matter what, some districts will receive more funds per APU than others. It's the nature of having a formula that attempts to "equalize" resources across the state. 
 
-The way to determine if the formula is significantly benefiting some schools more than another by only increasing one component of the formula is compare the order of  of school districts, arranged from highest revenue per APU to lowest revenue per APU, before and after the increases. This also means that all other variables (such as adjusted pupil units, property values, and district boundaries) remain constant.
+A 4% increase to the basic education component followed by 4 years of 3% inflationary increases means the basic education allowance would go from $6,728 per APU to $7,875.32 which is a 17% increase.
+
+Let's compare the percent change in revenue from the general education formula before and after the increases to the basic education component. The map below provides the increase for each school district. It shows that there is variation in increases in total revenue with a large majority of districts receiving between 15% and 16% increase, a few schools (largely in high property value districts) receive between 16% and 17% increases, and a few other categories that receive less than 15%.  
 
 <br>
 
-```{r projections districts order}
-rank.original.districts <- scenarios.5yr.districts
+```{r pct change district map}
+pct.change.total.rev.all.schools <- scenarios.5yr.districts %>%
+  group_by(`District Name`, number, type) %>%
+  summarize(total.rev.original.apu = sum(revenue.original.apu, na.rm = TRUE),
+            total.rev.projection.apu = sum(revenue.bsrevonly.apu, na.rm = TRUE)) %>%
+  ungroup() %>%
+  filter(total.rev.original.apu > 0,
+         total.rev.original.apu != "Inf") %>%
+  mutate(pct.change.total.rev.apu = (total.rev.projection.apu - total.rev.original.apu) / total.rev.original.apu) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type")) %>%
+  left_join(group.codes, by = c("group" = "Code"))
 
-names(rank.original.districts)
+pct.change.total.rev.all.schools.map <- ggplot(pct.change.total.rev.all.schools) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = pct.change.total.rev.apu, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal rev - original: ", dollar(total.rev.original.apu), "\nTotal rev - after increases: ", dollar(total.rev.projection.apu), "\nPercent change in total rev: ", percent(pct.change.total.rev.apu, accuracy = .1), sep = ""))) +
+  theme_sf+
+  scale_fill_fermenter(palette = "PuBu", direction = 1, labels = scales::percent) +
+  labs(title = "Percent change in total rev after increases to basic education") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.all.schools.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+
 ```
+
+
+
+<br>
+
+If we compare public school districts with the charter schools we begin to see a pattern in the variation. Again, we can see that nearly all of the public schools receive a total revenue increase of between 14.5% and 16.5% with some sigificant outliers receive less than 14.5%. The median is 15.9%. 
+
+For charter schools we see that nearly all schools receive a percentage increases a bit lower - from 14.5% to just over 16%. The 25th and 75th percentiles fall between 14.5% and 16.3%. The median is 15.4%. There are just a few outliers receiving less than 14.5%. Overall, these aren't huge differences. Nearly all schools are receiving a similar percentage increase.
+
+<br>
+
+```{r pct change total rev group}
+pct.change.total.rev.group.plot <- ggplot(pct.change.total.rev.all.schools, aes(Definition, pct.change.total.rev.apu, fill = Definition, group = Definition)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge",
+                           aes(data_id = group,
+                               tooltip = after_stat({
+                                 paste("Q1: ", prettyNum(.data$ymin),
+                                       "\nMedian: ", prettyNum(.data$middle),
+                                       "\nQ3: ", prettyNum(.data$ymax))
+                               }),
+                               outlier.tooltip = paste(`District Name`, sep = ""))) +
+  labs(x="", y = "", color="", title = "Percent change after increases to basic education")+
+  scale_y_continuous(labels=scales::percent) +
+  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu")) +
+  theme_line+
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = pct.change.total.rev.group.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))   
+```
+
+<br>
+
+Let's also take a look at the revenue change per APU. The map below provides the dollar change per APU for school districts after increases to the basic education revenue component. It's interesting that the previous map showed the largest percentage increases in the districts with the lowest increase in revenue per APU in this map. Districts in the suburbs and in lakes regions experience the smallest increases in revenue per APU. Some of the largest increases are in our mort rural areas of Minnesota (northern and western).
+
+<br>
+
+```{r revenue change per APU map}
+rev.change.apu.all.schools <- total.rev.all.schools %>%
+  mutate(change.apu = total.rev.bsrevonly.apu - total.rev.original.apu) %>%
+  left_join(school_districts[,c(3,4,12)], by = c("number", "type")) %>%
+  left_join(district.join, by = c("District Name", "number", "type")) %>%
+  left_join(group.codes, by = c("group" = "Code"))
+
+rev.change.apu.all.schools.map <- ggplot(data = filter(rev.change.apu.all.schools, group == 1)) +
+  geom_sf_interactive(color = "grey85", aes(geometry = geometry, fill = change.apu, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal rev per apu - original", dollar(total.rev.original.apu), "\nTotal rev per APU - after increases: ", dollar(total.rev.bsrevonly.apu), "\nChange in total rev per APU: ", dollar(change.apu), sep = ""))) +
+  theme_sf+
+  scale_fill_stepsn(colours = brewer.pal(n = 5, "PuBu"),
+                    labels = scales::dollar) +
+  labs(title = "Change in revenue per APU after increases") +
+  theme(legend.box.margin = margin(50, 0, 0, -100),
+        text = element_text(size = 18))
+
+girafe(ggobj = rev.change.apu.all.schools.map, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+
+```
+
+<br>
+
+So what does this mean for for charter schools? The boxplot below provides the distribution of the revenue change per APU after increases to the basic education revenue component. Public schools have a pretrty narrow band of change with the 25th percentile being $1,148 per APU increase and a 75th percentile per APU increase of $1,481. The median is $1,251.
+
+The charter schools, on the other hand, experience a wide range of increases per APU. The 25th percentile begins at $1,147 and the 75th percentile begins at $2,039. The median for charter schools is $1,303.
+
+<br>
+
+```{r dollar change per APU groups}
+rev.change.apu.groups.plot <- ggplot(rev.change.apu.all.schools, aes(Definition, change.apu, fill = Definition, group = Definition)) +
+  geom_boxplot_interactive(outlier.colour = "black", outlier.shape = 16, outlier.size = 2, position = "dodge",
+                           aes(data_id = group,
+                               tooltip = after_stat({
+                                 paste("Q1: ", prettyNum(.data$ymin),
+                                       "\nMedian: ", prettyNum(.data$middle),
+                                       "\nQ3: ", prettyNum(.data$ymax))
+                               }),
+                               outlier.tooltip = paste(`District Name`, sep = ""))) +
+  labs(x="", y = "", color="", title = "Revenue change per APU after increases to basic education")+
+  scale_y_continuous(labels=scales::dollar) +
+  scale_fill_manual(values = brewer.pal(n = 5, "RdYlBu")) +
+  theme_line+
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+girafe(ggobj = rev.change.apu.groups.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE)) 
+
+
+```
+
+<br>
+
+# Why is there variation?
+
+The variation in the percent change in total revenue across schools as well as the opposite pattern in the schools that receive the highest revenue per APU increase forces us to ask a few questions.
+
+First, which types of formula component composition make it so that some districts get a higher percent change in their total revenue than other districts? And relatedly, why do some districts get higher dollar change per APU than others?
+
+Secondly, does this variation significantly impact the total revenue per APU such that districts are leapfrogging over each other if we were to rank all districts from highest revenue per APU to lowest revenue per APU? Remember, this is important because the general education formula is designed to provide more funding per APU to some districts over others because it attempts to equalize funding as well as acknowledge that there are higher costs associated to district location and student composition. If districts are "leapfrogging" each other, than increasing funding to education by only increasing the basic education component is "throwing it out whack".
+
+The table below provides the total revenue per APU from the general education formula for 5 different districts in Northwest Minnesota.
+
+* Pequot Lakes Public Schools,
+* Moorhead Area Public School District,
+* Grygla Public School District,
+* Ada-Borup-West Public Schools, and
+* Greenbush-Middle River School Dist.
+
+The first four are the examples we used previously and represent a wide range of rural-ness and property values. Greenbush-Middle River School District was added since it had the lowest percentage increase in the state after increasing the basic education revenue component.
+
+The table shows how nuanced this all is - the district receiving the largest percent increase was Pequot Lakes School District with a 16.8%. However, in total dollars it received the lowest increase with a nearly $1,200 per APU increase. 
+
+The highest total dollar increase was Grygla Public School District which received a nearly $2,000 per APU increase, but received the second lowest percent increase with 14.8%.
+
+The lowest percentage increase was Greenbush-Middle River school district with 11% but received a modest $1,300 per APU increase.
+
+
+<br>
+
+```{r pct change examples nw}
+pct.change.total.rev.nw.examples <- total.rev.all.schools %>%
+  filter(`District Name` %in% c("Pequot Lakes Public Schools", "Moorhead Area Public School District", "Grygla Public School District", "Ada-Borup-West Public Schools", "Greenbush-Middle River School Dist.")) %>%
+  mutate(total.rev.change.apu = total.rev.bsrevonly.apu - total.rev.original.apu,
+         pct.change.total.rev.apu = (total.rev.bsrevonly.apu - total.rev.original.apu) / total.rev.original.apu) %>%
+  arrange(desc(pct.change.total.rev.apu)) %>%
+  select(`District Name`, total.rev.original.apu, total.rev.bsrevonly.apu, total.rev.change.apu, pct.change.total.rev.apu) %>%
+  rename(`Total rev per APU - original` = total.rev.original.apu,
+         `Total rev per APU - after increase` = total.rev.bsrevonly.apu,
+         `Change in revenue per APU` = total.rev.change.apu,
+         `Percent change in revenue` = pct.change.total.rev.apu)
+
+datatable(pct.change.total.rev.nw.examples, class = "cell-border stripe", filter = "top", rownames = FALSE,
+          options = list(columnDefs = list(list(className = "dt-center", targets = 1:4)))) %>%
+  formatCurrency(2:4, "$") %>%
+  formatPercentage(5, digits = 1)
+  
+```
+
+<br>
+
+So what in the world is going on? Well, it's all about the composition of the components each district receives from the general education formula.
+
+The percentage change of the total revenue is linked to how much of a districts revenue is linked to the basic education component. The chart below provides the percent change each of the districts receive after increases to the basic education (light green) with the percentage of their total revenue from the general education formula comes from components linked to the basic education component. The chart clearly shows that the districts that received the highest percentage increases also had a significantly large proportion of the revenue linked to the basic education component. 
+
+For example, Pequot Lakes received the highest percentage increase of this group and also had nearly 99% of their revenue come from components that are linked to the basic education component. Whereas Greenbush-Middle River had the lowest percentage increase to their total revenue from the general education formula and only had 65% of that revenue come from components linked to the basic education component.
+
+<br>
+
+
+```{r component change nw examples}
+pct.change.components.nw.examples <- scenarios.5yr.districts %>%
+  filter(`District Name` %in% c("Pequot Lakes Public Schools", "Moorhead Area Public School District", "Grygla Public School District", "Ada-Borup-West Public Schools", "Greenbush-Middle River School Dist.")) %>%
+  mutate(pct.change.comp = (revenue.bsrevonly.apu - revenue.original.apu) / revenue.original.apu) %>%
+  mutate(revenue.change.comp = revenue.bsrevonly.apu - revenue.original.apu,
+         change.yes.no = ifelse(revenue.change.comp > 0, "Linked to basic education", "Not linked to basic education"))
+
+prop.rev.change.nw.examples <- pct.change.components.nw.examples %>%
+  group_by(`District Name`, number, type, change.yes.no) %>%
+  summarize(revenue.original.apu = sum(revenue.original.apu),
+            revenue.bsrevonly.apu = sum(revenue.bsrevonly.apu)) %>%
+  ungroup() %>%
+  group_by(`District Name`) %>%
+  mutate(total.rev.original.apu = sum(revenue.original.apu),
+         total.rev.bsrevonly.apu = sum(revenue.bsrevonly.apu),
+         pct.change.total.rev.apu = (total.rev.bsrevonly.apu - total.rev.original.apu) / total.rev.original.apu,
+         pct = revenue.original.apu / sum(revenue.original.apu)) %>%
+  ungroup() %>%
+  arrange(desc(pct)) %>%
+  mutate(`District Name` = as.factor(`District Name`),
+         `District Name` = fct_reorder(`District Name`, -pct),
+         pct.of.pct = pct.change.total.rev.apu * pct) %>%
+  filter(change.yes.no == "Linked to basic education")
+
+prop.rev.change.nw.examples.plot <- ggplot() +
+  geom_col_interactive(data = prop.rev.change.nw.examples, aes(x = reorder(`District Name`, pct.change.total.rev.apu), y = pct.change.total.rev.apu, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - original: ", dollar(total.rev.original.apu), "\nTotal revenue per APU - after increases: ", dollar(total.rev.bsrevonly.apu), "\nPercent change in revenue after increases: ", percent(pct.change.total.rev.apu, accuracy = .1), "\nPercent that components linked to basic education comprise of total revenue: ", percent(pct, accuracy = .1), sep = "")), fill = "#bae4b3") +
+  geom_col_interactive(data = prop.rev.change.nw.examples, width = .5, aes(x = reorder(`District Name`, pct.change.total.rev.apu), y = pct.of.pct, data_id = `District Name`, tooltip = paste(`District Name`, "\nTotal revenue per APU - original: ", dollar(total.rev.original.apu), "\nTotal revenue per APU - after increases: ", dollar(total.rev.bsrevonly.apu), "\nPercent change in revenue after increases: ", percent(pct.change.total.rev.apu, accuracy = .1), "\nPercent that components linked to basic education comprise of total revenue: ", percent(pct, accuracy = .1), sep = "")), fill = "#006d2c", show.legend = FALSE) +
+  geom_label(data = prop.rev.change.nw.examples, aes(x = reorder(`District Name`, pct.change.total.rev.apu), y = pct.change.total.rev.apu, label = paste("Change in total revenue\n", percent(pct.change.total.rev.apu, accuracy = .1))), show.legend = FALSE, fill = "#bae4b3", nudge_y = .02) +
+  labs(x="", y = "", color="", title = "Percent of revenue from components linked to basic education")+
+  geom_label(data = prop.rev.change.nw.examples, aes(x = reorder(`District Name`, pct.change.total.rev.apu), y = pct.of.pct / 2, label = paste("Linked components are\n", percent(pct, accuracy = .1), " of total revenue", sep = "")), fill = "transparent") +
+  scale_y_continuous(labels=scales::percent)+
+  expand_limits(y = c(0, .22)) +
+  coord_flip() +
+  theme_bar+
+  theme(legend.position = "bottom",
+        text = element_text(size = 18))
+
+
+girafe(ggobj = prop.rev.change.nw.examples.plot, width_svg = 10, height_svg = 10) %>%
+  girafe_options(opts_selection(type = "none"),
+                 opts_sizing(rescale = FALSE))      
+
+
+```
+
+
+<br>
+
+Although Grygla received the second lowest percentage increase to their total revenue from the general education formula, it had, by far, the largest dollar per APU increase to their revenue.
+
+The chart below provides the proportion of revenue received at a school district by component. In order to compare with Grygla which has the highest revenue per APU, some of the boxes are empty, meaning that is the gap between the district and Grygla's total revenue per APU after increasing the basic education revenue component. 
+
+The chart shows that Grygla receives the highest revenue per APU after the increases to the basic education component. This due to the highest amount of revenue the district receives that's linked to the basic education component. Although everyone gets the same increase to the basic education allowance, Grygla also receives a substantial amount from sparsity and transportation sparsity which are linked to the increases in the basic education component. So quite a large proportion of Grygla's revenue received an increase. The only reason it doesn't have a higher percentage change is because it also receives funding from the non-linked components such as local optional aid, small schools, and operating capital aid. 
+
+On the other hand, districts such as Moorhead and Pequot Lakes have less components linked to the basic education component, therefore there is less revenue to increase. Moorhead receives a little bit more in compensatory but doesn't receive the sparsity revenue that Grygla receives. Pequot Lakes gets nearly all of it's revenue from the basic education component with just a bit more from compensatory and transportation sparsity.
+
+<br>
+
+```{r component change and composition nw examples}
+wtf.max <- total.rev.all.schools %>%
+  filter(`District Name` %in% c("Pequot Lakes Public Schools", "Moorhead Area Public School District", "Grygla Public School District", "Ada-Borup-West Public Schools", "Greenbush-Middle River School Dist.")) %>%
+  mutate(max.total.rev = max(total.rev.bsrevonly.apu),
+         `Less total rev` = max.total.rev - total.rev.bsrevonly.apu) %>%
+  select(`District Name`, `Less total rev`) %>%
+  gather(key = "Category", value = "revenue.bsrevonly.apu", 2) %>%
+  mutate(change.yes.no = "Not linked to basic education")
+
+wtf <- pct.change.components.nw.examples %>%
+  left_join(var.codes, by = c("categories" = "Code")) %>%
+  select(`District Name`, Category, revenue.bsrevonly.apu, change.yes.no) %>%
+  rbind(wtf.max) %>%
+  group_by(`District Name`) %>%
+  mutate(total.rev.bsrevonly = sum(revenue.bsrevonly.apu[Category != "Less total rev"])) %>%
+  ungroup() %>%
+  mutate(Category = fct_relevel(Category, "Basic education", "Compensatory", "Sparsity", "Transportation sparsity", "Declining enrollment", "Local optional aid", "Operating capital aid", "Small schools", "Gifted and talented", "English learners", "Equity aid", "Extended time", "Pensions adjustment", "Transition aid"),
+         `District Name` = fct_relevel(`District Name`, "Grygla Public School District", "Greenbush-Middle River School Dist.", "Ada-Borup-West Public Schools", "Moorhead Area Public School District", "Pequot Lakes Public Schools")) %>%
+    setorder(Category)
+
+plot <- ggplot(wtf, aes(fill = Category, values = revenue.bsrevonly.apu/100)) +
+  facet_wrap(~`District Name`, ncol = 2) +
+  geom_waffle(flip = TRUE, size = .33, n_rows = 10,  make_proportional = TRUE, aes(color = change.yes.no)) +
+  coord_equal() +
+  theme_sf + 
+  scale_fill_manual(values = c("#084594", "#4292c6", "#6baed6", "#c6dbef", "#eff3ff", "#f6e8c3", "#dfc27d", "#bf812d", "#8c510a", "#543005", "transparent")) +
+  labs(title = "Composition of total revenue change", subtitle = "Each box represents a $135 per adjusted pupil unit") +
+  scale_color_manual(values = c("#276419", "grey85")) +
+  theme(legend.position = "bottom",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        text = element_text(size = 18),
+        strip.text = element_text(size = 10))
+
+girafe(ggobj = plot, height_svg = 10, width_svg = 10) %>%
+  girafe_options(opts_sizing(rescale = FALSE))
+
+```
+
+
 
